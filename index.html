@@ -1,0 +1,3008 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RunningHub AI 图像生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* 夜间模式（默认） */
+            --bg-primary: #0f172a;
+            --bg-secondary: rgba(30, 41, 59, 0.7);
+            --bg-input: rgba(30, 41, 59, 0.5);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --border-input: #475569;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --slot-bg: rgba(30, 41, 59, 0.3);
+            --slot-hover: rgba(30, 41, 59, 0.5);
+            --chip-bg: rgba(37, 99, 235, 0.2);
+            --chip-border: rgba(59, 130, 246, 0.4);
+            --chip-text: #93c5fd;
+            --btn-secondary: #334155;
+            --btn-secondary-hover: #475569;
+        }
+
+        [data-theme="light"] {
+            /* 日间模式 - 白绿配色 */
+            --bg-primary: #f0fdf4;
+            --bg-secondary: rgba(255, 255, 255, 0.9);
+            --bg-input: rgba(255, 255, 255, 0.8);
+            --text-primary: #1a1a1a;
+            --text-secondary: #4b5563;
+            --text-muted: #6b7280;
+            --border-color: rgba(34, 197, 94, 0.2);
+            --border-input: #86efac;
+            --accent-blue: #16a34a;
+            --accent-purple: #22c55e;
+            --accent-green: #15803d;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --slot-bg: rgba(220, 252, 231, 0.5);
+            --slot-hover: rgba(187, 247, 208, 0.7);
+            --chip-bg: rgba(34, 197, 94, 0.15);
+            --chip-border: rgba(34, 197, 94, 0.4);
+            --chip-text: #15803d;
+            --btn-secondary: #dcfce7;
+            --btn-secondary-hover: #bbf7d0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .image-slot {
+            transition: all 0.3s ease;
+            aspect-ratio: 1;
+            background: var(--slot-bg);
+        }
+
+        .image-slot:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+        }
+
+        [data-theme="light"] .image-slot:hover {
+            box-shadow: 0 10px 25px -5px rgba(22, 163, 74, 0.3);
+        }
+
+        .image-slot.active {
+            border-color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .image-slot.dragover {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.2);
+        }
+
+        [data-theme="light"] .image-slot.dragover {
+            background: rgba(34, 197, 94, 0.2);
+        }
+
+        .img-tag {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            background: var(--accent-blue);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 5;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-left-color: var(--accent-blue);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .pastable-indicator {
+            position: relative;
+        }
+
+        .pastable-indicator::after {
+            content: 'Ctrl+V';
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            font-size: 9px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 2px 4px;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            color: #94a3b8;
+        }
+
+        [data-theme="light"] .pastable-indicator::after {
+            color: #15803d;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .pastable-indicator:hover::after {
+            opacity: 1;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(128, 128, 128, 0.1);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(128, 128, 128, 0.3);
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(128, 128, 128, 0.5);
+        }
+
+        /* 富文本编辑器样式 */
+        .prompt-editor {
+            min-height: 120px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: var(--bg-input);
+            border-color: var(--border-input);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .prompt-editor:empty::before {
+            content: attr(data-placeholder);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        /* 交互式引用标签 (Chip) */
+        .mention-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--chip-bg);
+            color: var(--chip-text);
+            border: 1px solid var(--chip-border);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            user-select: none;
+            vertical-align: middle;
+            margin: 0 2px;
+            transition: all 0.2s;
+        }
+
+        .mention-chip:hover {
+            filter: brightness(1.2);
+        }
+
+        /* 弹出式引用选择面板 */
+        .mention-popup {
+            position: absolute;
+            width: 220px;
+            max-height: 280px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent-blue);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px) scale(0.95);
+            transition: all 0.2s ease;
+        }
+
+        .mention-popup.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+
+        .mention-popup-header {
+            padding: 10px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-input);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mention-popup-header .hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .mention-popup-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px;
+        }
+
+        .mention-popup-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.15s;
+            border: 2px solid transparent;
+        }
+
+        .mention-popup-item:hover,
+        .mention-popup-item.selected {
+            background: var(--chip-bg);
+            border-color: var(--accent-blue);
+        }
+
+        .mention-popup-item.selected {
+            filter: brightness(1.1);
+        }
+
+        .mention-popup-item img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 6px;
+            display: block;
+            background: var(--slot-bg);
+        }
+
+        .mention-popup-item span {
+            font-size: 13px;
+            color: var(--accent-blue);
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        .mention-popup-empty {
+            padding: 24px 16px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .mention-popup-empty .icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+
+        .textarea-wrapper {
+            position: relative;
+        }
+
+        .mention-btn {
+            position: absolute;
+            right: 12px;
+            top: 8px;
+            background: var(--btn-secondary);
+            border: 1px solid var(--border-input);
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 10;
+            font-weight: 600;
+        }
+
+        .mention-btn:hover,
+        .mention-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        /* 设置抽屉样式 */
+        .settings-drawer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, opacity 0.3s ease;
+            opacity: 0;
+        }
+
+        .settings-drawer.open {
+            max-height: 800px;
+            opacity: 1;
+        }
+
+        .drawer-toggle {
+            transition: transform 0.3s ease;
+        }
+
+        .drawer-toggle.open {
+            transform: rotate(180deg);
+        }
+
+        /* 历史记录样式 */
+        .history-container {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 4px;
+            scroll-behavior: smooth;
+        }
+
+        .history-item {
+            position: relative;
+            flex-shrink: 0;
+            width: 100px;
+            height: 100px;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .history-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .history-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .history-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .history-item:hover .history-overlay {
+            opacity: 1;
+        }
+
+        .history-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .history-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .history-time {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            right: 2px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 1px 3px;
+            border-radius: 3px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 图片预览模态框 */
+        .image-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .image-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .image-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .image-modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* 结果图预览限制高度 */
+        .result-preview-container {
+            max-height: 70vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-preview-container img {
+            max-height: 70vh;
+            width: auto;
+            object-fit: contain;
+        }
+
+        /* 结果图预览放大镜按钮 */
+        .result-zoom-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .result-zoom-btn:hover {
+            filter: brightness(1.1);
+            transform: scale(1.1);
+        }
+
+        /* 任务列表样式 */
+        .task-list-container {
+            max-height: 300px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .task-item {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: var(--slot-bg);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            background: var(--slot-hover);
+            border-color: var(--accent-blue);
+        }
+
+        .task-item.selected {
+            border-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .task-item.pending {
+            border-left: 3px solid var(--text-muted);
+        }
+
+        .task-item.submitting {
+            border-left: 3px solid var(--accent-purple);
+        }
+
+        .task-item.polling {
+            border-left: 3px solid var(--accent-blue);
+        }
+
+        .task-item.completed {
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .task-item.failed {
+            border-left: 3px solid #ef4444;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .task-id {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .task-status {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .task-status.pending {
+            background: var(--text-muted);
+            color: white;
+        }
+
+        .task-status.submitting {
+            background: var(--accent-purple);
+            color: white;
+        }
+
+        .task-status.polling {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .task-status.completed {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .task-status.failed {
+            background: #ef4444;
+            color: white;
+        }
+
+        .task-prompt {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 6px;
+        }
+
+        .task-progress-bar {
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .task-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .task-progress-text {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            text-align: right;
+        }
+
+        /* 任务调试信息面板 */
+        .task-debug-panel {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+        }
+
+        .task-debug-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-debug-content {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* 输入框统一样式 */
+        .form-input {
+            background: var(--bg-input);
+            border: 1px solid var(--border-input);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-blue);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        [data-theme="light"] .form-input:focus {
+            box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+        }
+
+        /* 下拉框样式 */
+        .form-select {
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-input);
+            color: var(--text-primary);
+        }
+
+        [data-theme="light"] .form-select option {
+            background-color: #f0fdf4;
+            color: #166534;
+        }
+
+        /* 主题切换按钮 */
+        .theme-btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-input);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .theme-btn:hover {
+            background: var(--btn-secondary-hover);
+        }
+
+        .theme-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        /* 单选框样式 */
+        input[type="radio"] {
+            accent-color: var(--accent-blue);
+        }
+
+        /* 开关样式 */
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--btn-secondary);
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.toggle-slider {
+            background-color: var(--accent-blue);
+        }
+
+        input:checked+.toggle-slider:before {
+            transform: translateX(20px);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4 md:p-6 custom-scrollbar">
+
+    <!-- 图片预览模态框 -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <div class="image-modal-close">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </div>
+        <img id="modalImage" src="" alt="Preview" onclick="event.stopPropagation()">
+    </div>
+
+    <div class="max-w-7xl mx-auto space-y-4">
+        <!-- 标题 -->
+        <div class="text-center space-y-2 mb-6">
+            <h1
+                class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                RunningHub AI 图像生成器
+            </h1>
+            <p class="text-slate-400 text-sm" style="color: var(--text-secondary);">支持文生图 / 图生图 | 自动模式切换 | 输入 @ 引用图像</p>
+        </div>
+
+        <!-- 第一排：设置区（可关闭抽屉） -->
+        <div class="glass-panel rounded-2xl overflow-hidden">
+            <button onclick="toggleSettingsDrawer()"
+                class="w-full px-6 py-4 flex items-center justify-between hover:bg-opacity-50 transition-colors"
+                style="background: rgba(128,128,128,0.05);">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span class="text-lg font-semibold">设置与配置</span>
+                    <span class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted);">API配置、导入导出、主题设置</span>
+                </div>
+                <svg id="settingsDrawerIcon" class="w-6 h-6 drawer-toggle" style="color: var(--text-secondary);"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            <div id="settingsDrawer" class="settings-drawer">
+                <div class="p-6 space-y-6 border-t" style="border-color: var(--border-color);">
+
+                    <!-- 主题切换 -->
+                    <div>
+                        <h3 class="text-md font-semibold mb-4 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                            </svg>
+                            主题设置
+                        </h3>
+                        <div class="flex gap-3">
+                            <button onclick="setTheme('light')" id="theme-light"
+                                class="theme-btn flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                                日间
+                            </button>
+                            <button onclick="setTheme('dark')" id="theme-dark"
+                                class="theme-btn flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                </svg>
+                                夜间
+                            </button>
+                            <button onclick="setTheme('auto')" id="theme-auto"
+                                class="theme-btn flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                跟随系统
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- API配置 -->
+                    <div class="border-t pt-4" style="border-color: var(--border-color);">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-md font-semibold flex items-center gap-2"
+                                style="color: var(--text-secondary);">
+                                <svg class="w-4 h-4" style="color: var(--accent-blue);" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                API 配置
+                            </h3>
+                            <div class="flex gap-2">
+                                <button onclick="saveConfig()"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                                    style="background: var(--accent-blue); color: white;">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                    </svg>
+                                    保存配置
+                                </button>
+                                <button onclick="document.getElementById('configFile').click()"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                                    style="background: var(--btn-secondary); color: var(--text-primary);">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    导入
+                                </button>
+                                <button onclick="exportConfig()"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                                    style="background: var(--btn-secondary); color: var(--text-primary);">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    导出
+                                </button>
+                                <input type="file" id="configFile" accept=".json" onchange="importConfig(event)">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium" style="color: var(--text-secondary);">API Base
+                                    URL</label>
+                                <input type="text" id="baseUrl" value="https://www.runninghub.cn"
+                                    class="w-full px-4 py-2 rounded-lg text-sm form-input">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium" style="color: var(--text-secondary);">API Key</label>
+                                <input type="password" id="apiKey"
+                                    class="w-full px-4 py-2 rounded-lg text-sm form-input">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 高级选项 -->
+                    <div class="border-t pt-4" style="border-color: var(--border-color);">
+                        <h3 class="text-md font-semibold mb-4 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-green);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            高级选项
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- 历史记录设置 -->
+                            <div>
+                                <h4 class="text-sm font-medium mb-3" style="color: var(--text-muted);">历史记录设置</h4>
+                                <div class="flex items-center gap-4">
+                                    <div class="flex-1">
+                                        <label class="text-xs mb-1 block"
+                                            style="color: var(--text-muted);">最大保存数量</label>
+                                        <input type="number" id="historyLimit" value="20" min="5" max="100"
+                                            class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                    </div>
+                                    <button onclick="clearHistory()"
+                                        class="mt-5 px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                                        style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        清除历史
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 图片压缩设置 -->
+                            <div>
+                                <h4 class="text-sm font-medium mb-3" style="color: var(--text-muted);">图片压缩设置</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <label class="text-sm" style="color: var(--text-secondary);">启用图片压缩</label>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="enableCompression" checked>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs mb-1 block" style="color: var(--text-muted);">长边限制
+                                                (px)</label>
+                                            <input type="number" id="maxEdgeLength" value="2752" min="512" max="8192"
+                                                class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                        </div>
+                                        <div>
+                                            <label class="text-xs mb-1 block" style="color: var(--text-muted);">JPEG 质量
+                                                (0-1)</label>
+                                            <input type="number" id="jpegQuality" value="1" min="0.1" max="1"
+                                                step="0.1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 并发队列设置 -->
+                            <div>
+                                <h4 class="text-sm font-medium mb-3" style="color: var(--text-muted);">并发队列设置</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="text-xs mb-1 block" style="color: var(--text-muted);">最大并发数</label>
+                                        <input type="number" id="maxConcurrency" value="3" min="1" max="10"
+                                            class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs mb-1 block" style="color: var(--text-muted);">轮询间隔 (秒)</label>
+                                        <input type="number" id="pollInterval" value="8" min="2" max="30"
+                                            step="1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                    </div>
+                                </div>
+                                <p class="text-xs mt-2" style="color: var(--text-muted);">设置同时处理的最大任务数和轮询间隔</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 第二排：参考图输入区 + 提示词输入区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- 左侧：参考图输入区 -->
+            <div class="glass-panel rounded-2xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        参考图片
+                        <span class="text-xs px-2 py-0.5 rounded" style="background: var(--bg-input); color: var(--text-muted);">不传图则文生图</span>
+                    </h2>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs px-2 py-1 rounded"
+                            style="background: var(--bg-input); color: var(--text-muted);" id="imageCount">0 / 10</span>
+                        <button onclick="clearAllImages()" class="text-xs transition-colors"
+                            style="color: #ef4444;">清空</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-2" id="imageGrid">
+                    <!-- Slots generated by JS -->
+                </div>
+                <p class="text-xs mt-3 text-center" style="color: var(--text-muted);">提示：鼠标悬停后按 Ctrl+V 粘贴图片，或拖拽图片到此处</p>
+            </div>
+
+            <!-- 右侧：提示词输入区 -->
+            <div class="glass-panel rounded-2xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        提示词
+                    </h2>
+                    <span class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted);">输入 @ 引用图片</span>
+                </div>
+
+                <div class="textarea-wrapper">
+                    <div id="prompt"
+                        class="prompt-editor flex-1 px-4 py-3 rounded-lg focus:ring-2 outline-none transition-all text-sm custom-scrollbar pr-12"
+                        contenteditable="true" data-placeholder="描述你想要生成的图像内容... 例如：让 @img1 的人物站在 @img2 的场景中"></div>
+
+                    <button type="button" onclick="toggleMentionPopup()" class="mention-btn" id="mentionBtn"
+                        title="插入图片引用">@</button>
+
+                    <!-- 弹出式引用选择面板 -->
+                    <div id="mentionPopup" class="mention-popup">
+                        <div class="mention-popup-header">
+                            <span>选择图片引用</span>
+                            <span class="hint">ESC 关闭</span>
+                        </div>
+                        <div class="mention-popup-list custom-scrollbar" id="mentionPopupList">
+                            <!-- 动态填充 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 生图参数：宽高比、分辨率和模型选择 -->
+                <div class="grid grid-cols-3 gap-3 mt-4">
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">模型选择</label>
+                        <select id="modelType" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                            <option value="v2">V2模型 (0.08元/张)</option>
+                            <option value="pro">Pro模型 (0.2-0.3元/张)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">宽高比</label>
+                        <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                            <option value="">默认 (Default)</option>
+                            <option value="1:1">1:1 (正方形)</option>
+                            <option value="2:3">2:3 (纵向)</option>
+                            <option value="3:2">3:2 (横向)</option>
+                            <option value="3:4">3:4 (纵向)</option>
+                            <option value="4:3">4:3 (横向)</option>
+                            <option value="4:5">4:5 (纵向)</option>
+                            <option value="5:4">5:4 (横向)</option>
+                            <option value="9:16" selected>9:16 (手机竖屏)</option>
+                            <option value="16:9">16:9 (宽屏)</option>
+                            <option value="21:9">21:9 (超宽屏)</option>
+                            <option value="1:4">1:4 (长图/海报)</option>
+                            <option value="4:1">4:1 (Banner)</option>
+                            <option value="1:8">1:8 (极长图)</option>
+                            <option value="8:1">8:1 (极宽图)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">分辨率</label>
+                        <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                            <option value="">默认 (1k)</option>
+                            <option value="1k" selected>1K</option>
+                            <option value="2k">2K</option>
+                            <option value="4k">4K</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button onclick="generateImage()" id="generateBtn"
+                    class="w-full mt-4 py-3 rounded-xl font-semibold text-base shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                    style="background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); color: white; box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);">
+                    <span id="btnText">生成图像</span>
+                    <div id="btnLoader" class="loader hidden"></div>
+                </button>
+
+                <div id="messageArea" class="hidden rounded-lg p-3 text-sm mt-3"></div>
+            </div>
+        </div>
+
+        <!-- 第三排：结果预览区 -->
+        <div id="resultArea" class="glass-panel rounded-2xl p-5 hidden">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5" style="color: var(--accent-green);" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                生成结果
+            </h2>
+            <div class="relative group result-preview-container rounded-lg" style="background: var(--bg-input);">
+                <img id="resultImage" class="rounded-lg shadow-2xl" />
+                <div
+                    class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-4">
+                    <button onclick="openImageModal(document.getElementById('resultImage').src)" class="result-zoom-btn"
+                        title="放大预览">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                        </svg>
+                    </button>
+                    <a id="downloadLink" href="#" target="_blank" download
+                        class="px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
+                        style="background: var(--accent-blue); color: white;">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        下载原图
+                    </a>
+                </div>
+            </div>
+            <div id="jsonResult" class="mt-4 p-4 rounded-lg overflow-x-auto text-xs font-mono hidden"
+                style="background: var(--bg-input); color: var(--text-muted);"></div>
+        </div>
+
+        <!-- 第四排：任务列表 + 历史记录区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- 左侧：任务列表 -->
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        任务列表
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span id="taskCount" class="text-xs px-2 py-1 rounded"
+                            style="background: var(--bg-input); color: var(--text-muted);">0</span>
+                        <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
+                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                            清理
+                        </button>
+                    </div>
+                </div>
+                <div id="taskContainer" class="task-list-container custom-scrollbar">
+                    <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
+                        暂无任务
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：生成历史 -->
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        生成历史
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span id="historyCount" class="text-xs px-2 py-1 rounded"
+                            style="background: var(--bg-input); color: var(--text-muted);">0</span>
+                        <button onclick="clearHistory()" class="text-xs transition-colors px-2 py-1 rounded"
+                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                            清理
+                        </button>
+                    </div>
+                </div>
+                <div id="historyContainer" class="history-container custom-scrollbar">
+                    <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
+                        暂无历史记录
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let activeSlot = null;
+        const imageFiles = [];
+        let isMentionPopupOpen = false;
+        let editingChip = null;
+        let selectedIndex = -1;
+        let popupKeyword = '';
+        let keyboardSelectedIndex = -1;
+        let savedRange = null;
+        let isSettingsDrawerOpen = false;
+        let currentTheme = 'dark';
+        
+        // 任务队列管理
+        let taskQueue = []; // 等待执行的任务
+        let activeTasks = new Map(); // 正在执行的任务 (taskId -> taskInfo)
+        let runningTaskCount = 0; // 当前正在运行的任务数
+        let taskIdCounter = 0; // 本地任务ID计数器
+
+        // IndexedDB 相关 - 修改为 RunningHub 专用
+        const DB_NAME = 'RunningHubDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'history';
+        let db = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            initImageGrid();
+            loadSavedConfig();
+            setupPasteListener();
+            setupMentionSystem();
+            initDB().then(() => {
+                loadHistory();
+            });
+        });
+
+        // ==================== 主题管理 ====================
+        function initTheme() {
+            const savedTheme = localStorage.getItem('runningHubTheme') || 'dark';
+            setTheme(savedTheme, false);
+
+            // 监听系统主题变化
+            if (window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                    if (currentTheme === 'auto') {
+                        applyTheme(e.matches ? 'dark' : 'light');
+                    }
+                });
+            }
+        }
+
+        function setTheme(theme, save = true) {
+            currentTheme = theme;
+
+            // 更新按钮状态
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`theme-${theme}`)?.classList.add('active');
+
+            if (save) {
+                localStorage.setItem('runningHubTheme', theme);
+            }
+
+            if (theme === 'auto') {
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                applyTheme(prefersDark ? 'dark' : 'light');
+            } else {
+                applyTheme(theme);
+            }
+        }
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+
+        // ==================== 设置抽屉 ====================
+        function toggleSettingsDrawer() {
+            const drawer = document.getElementById('settingsDrawer');
+            const icon = document.getElementById('settingsDrawerIcon');
+            isSettingsDrawerOpen = !isSettingsDrawerOpen;
+
+            if (isSettingsDrawerOpen) {
+                drawer.classList.add('open');
+                icon.classList.add('open');
+            } else {
+                drawer.classList.remove('open');
+                icon.classList.remove('open');
+            }
+        }
+
+        // ==================== IndexedDB 操作 ====================
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+                };
+            });
+        }
+
+        function addHistoryItem(imageData, prompt) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                // 保存参考图片数据（只保存有图片的槽位）
+                const referenceImages = [];
+                imageFiles.forEach((file, index) => {
+                    if (file) {
+                        // 将 File 对象转换为 Base64 以便存储
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onloadend = () => {
+                            referenceImages.push({
+                                index: index,
+                                dataUrl: reader.result,
+                                name: file.name || `image${index + 1}`
+                            });
+                            
+                            // 当所有图片都转换完成后添加到历史记录
+                            if (referenceImages.length === imageFiles.filter(f => f !== null).length) {
+                                saveToHistory(imageData, prompt, referenceImages, resolve, reject);
+                            }
+                        };
+                    }
+                });
+                
+                // 如果没有参考图，直接保存
+                if (imageFiles.filter(f => f !== null).length === 0) {
+                    saveToHistory(imageData, prompt, [], resolve, reject);
+                }
+            });
+        }
+
+        function saveToHistory(imageData, prompt, referenceImages, resolve, reject) {
+            const transaction = db.transaction([STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+
+            const item = {
+                imageData: imageData,
+                prompt: prompt,
+                referenceImages: referenceImages,
+                timestamp: Date.now()
+            };
+
+            const request = store.add(item);
+            request.onsuccess = () => {
+                cleanupOldHistory().then(() => resolve(request.result));
+            };
+            request.onerror = () => reject(request.error);
+        }
+
+        function getAllHistory() {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const index = store.index('timestamp');
+                const request = index.openCursor(null, 'prev');
+
+                const results = [];
+                request.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        results.push(cursor.value);
+                        cursor.continue();
+                    } else {
+                        resolve(results);
+                    }
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function deleteHistoryItem(id) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function clearAllHistory() {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                }
+
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.clear();
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function cleanupOldHistory() {
+            const limit = parseInt(document.getElementById('historyLimit').value) || 20;
+            const all = await getAllHistory();
+
+            if (all.length > limit) {
+                const toDelete = all.slice(limit);
+                for (const item of toDelete) {
+                    await deleteHistoryItem(item.id);
+                }
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const history = await getAllHistory();
+                const container = document.getElementById('historyContainer');
+                const countEl = document.getElementById('historyCount');
+
+                countEl.textContent = history.length;
+
+                if (history.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
+                            暂无历史记录
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = history.map(item => `
+                    <div class="history-item">
+                        <img src="${item.imageData}" alt="Generated" loading="lazy">
+                        <div class="history-overlay">
+                            <button class="history-btn" onclick="reusePrompt(${item.id})" title="复用提示词">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+                            </button>
+                            <button class="history-btn" onclick="openImageModal('${item.imageData}')" title="放大预览">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                            </button>
+                            <button class="history-btn" onclick="downloadHistoryImage(${item.id})" title="下载">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            </button>
+                            <button class="history-btn" onclick="deleteHistoryItem(${item.id}).then(() => loadHistory())" title="删除">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                        <div class="history-time">${formatTime(item.timestamp)}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load history:', error);
+            }
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+            if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`;
+
+            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+
+        async function downloadHistoryImage(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                if (item) {
+                    const link = document.createElement('a');
+                    link.href = item.imageData;
+                    link.download = `generated-${Date.now()}.png`;
+                    link.click();
+                }
+            } catch (error) {
+                console.error('Failed to download:', error);
+            }
+        }
+
+        async function clearHistory() {
+            if (!confirm('确定要清除所有历史记录吗？此操作不可恢复。')) return;
+
+            try {
+                await clearAllHistory();
+                await loadHistory();
+                showMessage('历史记录已清除', 'success');
+            } catch (error) {
+                showMessage('清除历史记录失败', 'error');
+            }
+        }
+
+        // 辅助函数：将【imageX】格式的文本转换回 mention chip HTML
+        function parsePromptWithMentions(promptText) {
+            if (!promptText) return '';
+            
+            // 使用正则表达式匹配【image数字】格式
+            const mentionRegex = /【image(\d+)】/g;
+            let result = '';
+            let lastIndex = 0;
+            let match;
+            
+            while ((match = mentionRegex.exec(promptText)) !== null) {
+                // 添加匹配前的文本
+                result += escapeHtml(promptText.slice(lastIndex, match.index));
+                
+                const imgIndex = parseInt(match[1]) - 1; // 转换为 0-based 索引
+                const chipInner = `@img${match[1]} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                
+                // 创建 chip HTML
+                result += `<span class="mention-chip" contenteditable="false" data-index="${imgIndex}" onclick="editExistingMention(event, this)">${chipInner}</span>&nbsp;`;
+                
+                lastIndex = match.index + match[0].length;
+            }
+            
+            // 添加剩余文本
+            result += escapeHtml(promptText.slice(lastIndex));
+            
+            return result;
+        }
+
+        // ==================== 复用提示词功能 ====================
+        async function reusePrompt(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                
+                if (!item) {
+                    showMessage('未找到历史记录', 'error');
+                    return;
+                }
+
+                // 确认是否要复用（特别是当已有参考图时）
+                const hasExistingImages = imageFiles.filter(f => f !== null).length > 0;
+                const hasReferenceImages = item.referenceImages && item.referenceImages.length > 0;
+                
+                if (hasExistingImages) {
+                    const confirmMsg = hasReferenceImages 
+                        ? '这将替换当前的参考图片和提示词，确定要继续吗？'
+                        : '这将替换当前的提示词，确定要继续吗？';
+                    
+                    if (!confirm(confirmMsg)) {
+                        return;
+                    }
+                }
+
+                // 1. 恢复提示词（将【imageX】格式转换为 mention chip）
+                if (item.prompt) {
+                    const promptEditor = document.getElementById('prompt');
+                    promptEditor.innerHTML = parsePromptWithMentions(item.prompt);
+                }
+
+                // 2. 恢复参考图片
+                if (item.referenceImages && item.referenceImages.length > 0) {
+                    // 清空当前所有参考图
+                    imageFiles.length = 0;
+                    
+                    // 按照原始索引位置恢复图片
+                    for (const refImg of item.referenceImages) {
+                        try {
+                            // 将 Base64 转换回 File 对象
+                            const file = await dataURLToFile(refImg.dataUrl, refImg.name || `image${refImg.index + 1}`);
+                            imageFiles[refImg.index] = file;
+                        } catch (err) {
+                            console.error(`Failed to restore image at index ${refImg.index}:`, err);
+                        }
+                    }
+                    
+                    // 重新渲染图片网格
+                    renderImageGrid();
+                }
+
+                // 滚动到提示词区域
+                const promptEditor = document.getElementById('prompt');
+                promptEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // 添加视觉反馈
+                promptEditor.classList.add('focus:ring-2');
+                setTimeout(() => {
+                    promptEditor.classList.remove('focus:ring-2');
+                }, 1000);
+
+                // 显示成功消息
+                const imgCount = (item.referenceImages ? item.referenceImages.length : 0);
+                const msg = imgCount > 0 
+                    ? `已复用提示词和 ${imgCount} 张参考图` 
+                    : `已复用提示词`;
+                showMessage(msg, 'success');
+
+            } catch (error) {
+                console.error('Failed to reuse prompt:', error);
+                showMessage('复用失败：' + error.message, 'error');
+            }
+        }
+
+        // 辅助函数：将 Data URL 转换为 File 对象
+        function dataURLToFile(dataurl, filename) {
+            return new Promise((resolve, reject) => {
+                fetch(dataurl)
+                    .then(response => response.blob())
+                    .then(blob => {
+                        const file = new File([blob], filename, { type: blob.type });
+                        resolve(file);
+                    })
+                    .catch(error => reject(error));
+            });
+        }
+
+        // ==================== 图片预览模态框 ====================
+        function openImageModal(src) {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImage');
+            img.src = src;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // ==================== 图片压缩 ====================
+        async function compressImage(file) {
+            const enableCompression = document.getElementById('enableCompression').checked;
+            if (!enableCompression) {
+                return file;
+            }
+
+            const maxEdge = parseInt(document.getElementById('maxEdgeLength').value) || 2560;
+            const quality = parseFloat(document.getElementById('jpegQuality').value) || 0.9;
+
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+
+                    let { width, height } = img;
+                    const maxDim = Math.max(width, height);
+
+                    if (maxDim <= maxEdge && quality >= 1.0) {
+                        resolve(file);
+                        return;
+                    }
+
+                    if (maxDim > maxEdge) {
+                        const scale = maxEdge / maxDim;
+                        width = Math.round(width * scale);
+                        height = Math.round(height * scale);
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const compressedFile = new File([blob], file.name, {
+                                type: 'image/jpeg',
+                                lastModified: Date.now()
+                            });
+                            resolve(compressedFile);
+                        } else {
+                            reject(new Error('Compression failed'));
+                        }
+                    }, 'image/jpeg', quality);
+                };
+
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('Failed to load image'));
+                };
+
+                img.src = url;
+            });
+        }
+
+        // Initialize Image Grid
+        function initImageGrid() {
+            renderImageGrid();
+        }
+
+        function renderImageGrid() {
+            const grid = document.getElementById('imageGrid');
+            const countEl = document.getElementById('imageCount');
+            grid.innerHTML = '';
+
+            const validImages = imageFiles.filter(f => f !== null);
+            countEl.textContent = `${validImages.length} / 10`;
+
+            for (let i = 0; i < imageFiles.length; i++) {
+                const file = imageFiles[i];
+                if (!file) continue;
+
+                const slot = document.createElement('div');
+                slot.className = 'image-slot pastable-indicator relative border-2 border-dashed rounded-xl overflow-hidden cursor-pointer group';
+                slot.style.borderColor = 'var(--border-input)';
+                slot.id = `slot-${i}`;
+                slot.ondragover = (e) => handleDragOver(e, i);
+                slot.ondragleave = (e) => handleDragLeave(e, i);
+                slot.ondrop = (e) => handleDrop(e, i);
+                slot.onmouseenter = () => activeSlot = i;
+                slot.onmouseleave = () => activeSlot = null;
+
+                const reader = new FileReader();
+                reader.onload = ((idx, slotElement) => (e) => {
+                    const img = slotElement.querySelector('img');
+                    if (img) img.src = e.target.result;
+                })(i, slot);
+                reader.readAsDataURL(file);
+
+                slot.innerHTML = `
+                    <input type="file" id="file-${i}" accept="image/*" onchange="handleFileSelect(event, ${i})">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center hidden" id="placeholder-${i}" style="color: var(--text-muted);">
+                        <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span class="text-xs">点击或拖拽</span>
+                    </div>
+                    <img id="preview-${i}" class="absolute inset-0 w-full h-full object-cover" />
+                    <span class="img-tag" id="tag-${i}">@img${i + 1}</span>
+                    <button onclick="removeImage(event, ${i})" id="remove-${i}" class="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white text-xs z-10 shadow-lg">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                `;
+                grid.appendChild(slot);
+            }
+
+            // RunningHub API 最多支持10张图片
+            if (validImages.length < 10) {
+                const addSlot = document.createElement('div');
+                addSlot.className = 'image-slot pastable-indicator relative border-2 border-dashed rounded-xl overflow-hidden cursor-pointer group transition-all';
+                addSlot.style.borderColor = 'var(--border-input)';
+                addSlot.style.background = 'var(--slot-bg)';
+                addSlot.ondragover = (e) => { e.preventDefault(); addSlot.classList.add('dragover'); };
+                addSlot.ondragleave = (e) => { e.preventDefault(); addSlot.classList.remove('dragover'); };
+                addSlot.ondrop = (e) => handleDropOnAddButton(e);
+                addSlot.onmouseenter = () => activeSlot = -1;
+                addSlot.onmouseleave = () => activeSlot = null;
+
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.id = 'file-add-new';
+                fileInput.accept = 'image/*';
+                fileInput.style.display = 'none';
+                fileInput.onchange = (e) => handleAddNewImage(e);
+
+                addSlot.onclick = () => fileInput.click();
+                addSlot.innerHTML = `
+                    <div class="absolute inset-0 flex flex-col items-center justify-center transition-colors" style="color: var(--text-muted);">
+                        <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span class="text-xs">添加</span>
+                    </div>
+                `;
+                addSlot.appendChild(fileInput);
+                grid.appendChild(addSlot);
+            }
+        }
+
+        async function handleAddNewImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const validCount = imageFiles.filter(f => f !== null).length;
+            if (validCount >= 10) {
+                showMessage('RunningHub API 最多只能上传10张参考图', 'error');
+                return;
+            }
+
+            let targetIndex = imageFiles.findIndex(f => f === null);
+            if (targetIndex === -1) {
+                targetIndex = imageFiles.length;
+                imageFiles.push(null);
+            }
+
+            try {
+                const compressedFile = await compressImage(file);
+                imageFiles[targetIndex] = compressedFile;
+                renderImageGrid();
+            } catch (error) {
+                console.error('Image compression failed:', error);
+                imageFiles[targetIndex] = file;
+                renderImageGrid();
+            }
+        }
+
+        async function handleDropOnAddButton(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                const validCount = imageFiles.filter(f => f !== null).length;
+                if (validCount >= 10) {
+                    showMessage('RunningHub API 最多只能上传10张参考图', 'error');
+                    return;
+                }
+                let newIndex = imageFiles.findIndex(f => f === null);
+                if (newIndex === -1) {
+                    newIndex = imageFiles.length;
+                    imageFiles.push(null);
+                }
+
+                try {
+                    const compressedFile = await compressImage(files[0]);
+                    imageFiles[newIndex] = compressedFile;
+                    renderImageGrid();
+                } catch (error) {
+                    console.error('Image compression failed:', error);
+                    imageFiles[newIndex] = files[0];
+                    renderImageGrid();
+                }
+            }
+        }
+
+        // 弹出式 Mention 面板
+        function toggleMentionPopup() {
+            if (isMentionPopupOpen) {
+                closeMentionPopup();
+            } else {
+                openMentionPopup();
+            }
+        }
+
+        function openMentionPopup(keyword = '') {
+            const popup = document.getElementById('mentionPopup');
+            const btn = document.getElementById('mentionBtn');
+            const list = document.getElementById('mentionPopupList');
+            const editor = document.getElementById('prompt');
+
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                savedRange = sel.getRangeAt(0).cloneRange();
+            }
+
+            popupKeyword = keyword.toLowerCase();
+            keyboardSelectedIndex = -1;
+
+            renderMentionList();
+            positionPopup();
+
+            popup.classList.add('active');
+            btn.classList.add('active');
+            isMentionPopupOpen = true;
+
+            editor.focus();
+        }
+
+        function positionPopup() {
+            const popup = document.getElementById('mentionPopup');
+            const editor = document.getElementById('prompt');
+            const editorRect = editor.getBoundingClientRect();
+
+            const sel = window.getSelection();
+            let cursorX = editorRect.left + 20;
+            let cursorY = editorRect.top + 50;
+
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                const rects = range.getClientRects();
+                if (rects.length > 0) {
+                    const rect = rects[rects.length - 1];
+                    cursorX = rect.left;
+                    cursorY = rect.bottom + 5;
+                }
+            }
+
+            const popupWidth = 220;
+            const popupHeight = 280;
+
+            if (cursorX + popupWidth > window.innerWidth) {
+                cursorX = window.innerWidth - popupWidth - 20;
+            }
+            if (cursorY + popupHeight > window.innerHeight) {
+                cursorY = editorRect.top - popupHeight - 5;
+            }
+
+            popup.style.left = (cursorX - editorRect.left) + 'px';
+            popup.style.top = (cursorY - editorRect.top) + 'px';
+        }
+
+        function renderMentionList() {
+            const list = document.getElementById('mentionPopupList');
+            list.innerHTML = '';
+
+            let hasImages = false;
+            let visibleCount = 0;
+
+            for (let i = 0; i < imageFiles.length; i++) {
+                if (imageFiles[i]) {
+                    const tagName = `img${i + 1}`;
+                    if (popupKeyword && !tagName.toLowerCase().includes(popupKeyword)) {
+                        continue;
+                    }
+
+                    hasImages = true;
+                    const item = document.createElement('div');
+                    item.className = 'mention-popup-item';
+                    item.dataset.index = i;
+                    item.dataset.visibleIndex = visibleCount;
+
+                    const previewSrc = URL.createObjectURL(imageFiles[i]);
+                    item.innerHTML = `
+                        <img src="${previewSrc}" alt="img${i + 1}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect fill=%22%231e293b%22 width=%2240%22 height=%2240%22/><text fill=%22%2360a5fa%22 x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2214%22>${i + 1}</text></svg>'">
+                        <span>@img${i + 1}</span>
+                    `;
+                    item.onclick = () => selectImageForInsert(i);
+                    item.onmouseenter = () => {
+                        keyboardSelectedIndex = visibleCount;
+                        updateKeyboardSelection();
+                    };
+                    list.appendChild(item);
+                    visibleCount++;
+                }
+            }
+
+            if (!hasImages) {
+                list.innerHTML = `
+                    <div class="mention-popup-empty">
+                        <div class="icon">🖼️</div>
+                        <div>请先上传<br>参考图片</div>
+                    </div>`;
+            } else if (visibleCount === 0) {
+                list.innerHTML = `
+                    <div class="mention-popup-empty">
+                        <div class="icon">🔍</div>
+                        <div>未找到匹配<br>"${popupKeyword}"</div>
+                    </div>`;
+            }
+        }
+
+        function closeMentionPopup() {
+            const popup = document.getElementById('mentionPopup');
+            const btn = document.getElementById('mentionBtn');
+
+            popup.classList.remove('active');
+            btn.classList.remove('active');
+            isMentionPopupOpen = false;
+            editingChip = null;
+            selectedIndex = -1;
+            popupKeyword = '';
+            keyboardSelectedIndex = -1;
+            savedRange = null;
+        }
+
+        function selectImageForInsert(index) {
+            const editor = document.getElementById('prompt');
+
+            const chipInner = `@img${index + 1} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+
+            if (editingChip) {
+                editingChip.dataset.index = index;
+                editingChip.innerHTML = chipInner;
+            } else {
+                editor.focus();
+
+                const sel = window.getSelection();
+                let range = savedRange;
+
+                if (!range && sel.rangeCount > 0) {
+                    range = sel.getRangeAt(0);
+                }
+
+                if (range) {
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+
+                    if (popupKeyword !== null || isMentionPopupOpen) {
+                        const textNode = range.startContainer;
+                        if (textNode.nodeType === Node.TEXT_NODE) {
+                            const text = textNode.textContent;
+                            const cursorPos = range.startOffset;
+                            const beforeCursor = text.substring(0, cursorPos);
+                            const atIndex = beforeCursor.lastIndexOf('@');
+                            if (atIndex !== -1) {
+                                range.setStart(textNode, atIndex);
+                                range.setEnd(textNode, cursorPos);
+                                range.deleteContents();
+                            }
+                        }
+                    }
+
+                    const chip = document.createElement('span');
+                    chip.className = 'mention-chip';
+                    chip.contentEditable = 'false';
+                    chip.dataset.index = index;
+                    chip.setAttribute('onclick', 'editExistingMention(event, this)');
+                    chip.innerHTML = chipInner;
+
+                    range.insertNode(chip);
+
+                    const space = document.createTextNode('\u00A0');
+                    chip.parentNode.insertBefore(space, chip.nextSibling);
+
+                    range.setStart(space, 1);
+                    range.setEnd(space, 1);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }
+
+            savedRange = null;
+            closeMentionPopup();
+        }
+
+        function updateKeyboardSelection() {
+            const items = document.querySelectorAll('.mention-popup-item');
+            items.forEach((item, idx) => {
+                if (parseInt(item.dataset.visibleIndex) === keyboardSelectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        function setupMentionSystem() {
+            const editor = document.getElementById('prompt');
+
+            editor.addEventListener('paste', function (e) {
+                e.preventDefault();
+                const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                document.execCommand('insertText', false, text);
+            });
+
+            editor.addEventListener('keydown', function (e) {
+                if (e.key === '@') {
+                    setTimeout(() => {
+                        openMentionPopup();
+                    }, 10);
+                } else if (isMentionPopupOpen) {
+                    handlePopupKeydown(e);
+                }
+            });
+
+            editor.addEventListener('input', function (e) {
+                if (isMentionPopupOpen) {
+                    handlePopupInput(e);
+                }
+            });
+
+            document.addEventListener('click', function (e) {
+                const popup = document.getElementById('mentionPopup');
+                const btn = document.getElementById('mentionBtn');
+                const editor = document.getElementById('prompt');
+
+                if (!popup.contains(e.target) && e.target !== btn && e.target !== editor && !e.target.closest('.mention-chip')) {
+                    closeMentionPopup();
+                }
+            });
+
+            window.addEventListener('resize', function () {
+                if (isMentionPopupOpen) {
+                    positionPopup();
+                }
+            });
+        }
+
+        function handlePopupKeydown(e) {
+            const items = document.querySelectorAll('.mention-popup-item');
+            const visibleCount = items.length;
+
+            if (visibleCount === 0) return;
+
+            switch (e.key) {
+                case 'Escape':
+                    e.preventDefault();
+                    closeMentionPopup();
+                    removeAtBeforeCursor();
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    keyboardSelectedIndex = (keyboardSelectedIndex + 1) % visibleCount;
+                    updateKeyboardSelection();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    keyboardSelectedIndex = (keyboardSelectedIndex - 1 + visibleCount) % visibleCount;
+                    updateKeyboardSelection();
+                    break;
+                case 'Enter':
+                case 'Tab':
+                    e.preventDefault();
+                    if (keyboardSelectedIndex >= 0) {
+                        const selectedItem = document.querySelector(`.mention-popup-item[data-visible-index="${keyboardSelectedIndex}"]`);
+                        if (selectedItem) {
+                            selectImageForInsert(parseInt(selectedItem.dataset.index));
+                        }
+                    }
+                    break;
+            }
+        }
+
+        function handlePopupInput(e) {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                const textNode = range.startContainer;
+
+                if (textNode.nodeType === Node.TEXT_NODE) {
+                    const text = textNode.textContent;
+                    const cursorPos = range.startOffset;
+                    const beforeCursor = text.substring(0, cursorPos);
+
+                    const atIndex = beforeCursor.lastIndexOf('@');
+                    if (atIndex !== -1) {
+                        const keyword = beforeCursor.substring(atIndex + 1);
+                        if (!keyword.includes(' ') && !keyword.includes('\n')) {
+                            popupKeyword = keyword;
+                            renderMentionList();
+                            if (document.querySelectorAll('.mention-popup-item').length > 0) {
+                                keyboardSelectedIndex = 0;
+                                updateKeyboardSelection();
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+            closeMentionPopup();
+        }
+
+        function removeAtBeforeCursor() {
+            const editor = document.getElementById('prompt');
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                const textNode = range.startContainer;
+                if (textNode.nodeType === Node.TEXT_NODE) {
+                    const text = textNode.textContent;
+                    const cursorPos = range.startOffset;
+                    const beforeCursor = text.substring(0, cursorPos);
+                    const atIndex = beforeCursor.lastIndexOf('@');
+                    if (atIndex !== -1 && atIndex === cursorPos - 1) {
+                        range.setStart(textNode, atIndex);
+                        range.setEnd(textNode, cursorPos);
+                        range.deleteContents();
+                    }
+                }
+            }
+        }
+
+        function editExistingMention(event, element) {
+            event.preventDefault();
+            event.stopPropagation();
+            editingChip = element;
+            selectedIndex = parseInt(element.dataset.index);
+            openMentionPopup();
+        }
+
+        function getParsedPromptText() {
+            const editor = document.getElementById('prompt');
+            let text = '';
+
+            function traverse(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    text += node.textContent.replace(/\u00A0/g, ' ');
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.classList.contains('mention-chip')) {
+                        const idx = parseInt(node.dataset.index) + 1;
+                        text += `【image${idx}】`;
+                    } else if (node.tagName === 'BR') {
+                        text += '\n';
+                    } else {
+                        for (let child of node.childNodes) {
+                            traverse(child);
+                        }
+                        if ((node.tagName === 'DIV' || node.tagName === 'P') && node.nextSibling) {
+                            text += '\n';
+                        }
+                    }
+                }
+            }
+
+            traverse(editor);
+            return text.replace(/\n{3,}/g, '\n\n').trim();
+        }
+
+        async function handleFileSelect(event, index) {
+            const file = event.target.files[0];
+            if (file) {
+                try {
+                    const compressedFile = await compressImage(file);
+                    handleImageFile(compressedFile, index);
+                } catch (error) {
+                    console.error('Image compression failed:', error);
+                    handleImageFile(file, index);
+                }
+            }
+        }
+
+        function handleDragOver(e, index) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById(`slot-${index}`).classList.add('dragover');
+        }
+
+        function handleDragLeave(e, index) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById(`slot-${index}`).classList.remove('dragover');
+        }
+
+        async function handleDrop(e, index) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById(`slot-${index}`).classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                try {
+                    const compressedFile = await compressImage(files[0]);
+                    handleImageFile(compressedFile, index);
+                } catch (error) {
+                    console.error('Image compression failed:', error);
+                    handleImageFile(files[0], index);
+                }
+            }
+        }
+
+        function handleImageFile(file, index) {
+            imageFiles[index] = file;
+            renderImageGrid();
+        }
+
+        function removeImage(e, index) {
+            e.stopPropagation();
+            imageFiles[index] = null;
+
+            while (imageFiles.length > 0 && imageFiles[imageFiles.length - 1] === null) {
+                imageFiles.pop();
+            }
+
+            renderImageGrid();
+            updatePromptMentionsAfterRemoval(index);
+
+            if (isMentionPopupOpen) {
+                renderMentionList();
+            }
+        }
+
+        function updatePromptMentionsAfterRemoval(removedIndex) {
+            const editor = document.getElementById('prompt');
+            const chips = editor.querySelectorAll('.mention-chip');
+
+            chips.forEach(chip => {
+                const chipIndex = parseInt(chip.dataset.index);
+                if (chipIndex === removedIndex) {
+                    const nextSibling = chip.nextSibling;
+                    chip.remove();
+                    if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent === '\u00A0') {
+                        nextSibling.remove();
+                    }
+                } else if (chipIndex > removedIndex) {
+                    const newIndex = chipIndex - 1;
+                    chip.dataset.index = newIndex;
+                    chip.innerHTML = `@img${newIndex + 1} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                }
+            });
+        }
+
+        function clearAllImages() {
+            imageFiles.length = 0;
+            renderImageGrid();
+            const editor = document.getElementById('prompt');
+            const chips = editor.querySelectorAll('.mention-chip');
+            chips.forEach(chip => {
+                const nextSibling = chip.nextSibling;
+                chip.remove();
+                if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE && nextSibling.textContent === '\u00A0') {
+                    nextSibling.remove();
+                }
+            });
+        }
+
+        function setupPasteListener() {
+            document.addEventListener('paste', async (e) => {
+                if (document.activeElement.id === 'prompt' || document.activeElement.isContentEditable) return;
+
+                const items = e.clipboardData.items;
+                for (let item of items) {
+                    if (item.type.indexOf('image') !== -1) {
+                        const validCount = imageFiles.filter(f => f !== null).length;
+                        if (validCount >= 10) {
+                            showMessage('RunningHub API 最多只能上传10张参考图', 'error');
+                            return;
+                        }
+
+                        const blob = item.getAsFile();
+                        const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type });
+
+                        let targetIndex;
+                        if (activeSlot === -1) {
+                            targetIndex = imageFiles.findIndex(f => f === null);
+                            if (targetIndex === -1) {
+                                targetIndex = imageFiles.length;
+                                imageFiles.push(null);
+                            }
+                        } else if (activeSlot !== null && activeSlot < imageFiles.length && !imageFiles[activeSlot]) {
+                            targetIndex = activeSlot;
+                        } else {
+                            targetIndex = imageFiles.findIndex(f => f === null);
+                            if (targetIndex === -1) {
+                                targetIndex = imageFiles.length;
+                                imageFiles.push(null);
+                            }
+                        }
+
+                        try {
+                            const compressedFile = await compressImage(file);
+                            imageFiles[targetIndex] = compressedFile;
+                            renderImageGrid();
+                        } catch (error) {
+                            console.error('Image compression failed:', error);
+                            imageFiles[targetIndex] = file;
+                            renderImageGrid();
+                        }
+                        break;
+                    }
+                }
+            });
+        }
+
+        // API 配置管理 - 修改为 RunningHub 专用
+        function saveConfig() {
+            const config = {
+                baseUrl: document.getElementById('baseUrl').value,
+                apiKey: document.getElementById('apiKey').value,
+                modelType: document.getElementById('modelType').value,
+                aspectRatio: document.getElementById('aspectRatio').value,
+                resolution: document.getElementById('resolution').value,
+                historyLimit: document.getElementById('historyLimit').value,
+                enableCompression: document.getElementById('enableCompression').checked,
+                maxEdgeLength: document.getElementById('maxEdgeLength').value,
+                jpegQuality: document.getElementById('jpegQuality').value,
+                maxConcurrency: document.getElementById('maxConcurrency').value,
+                pollInterval: document.getElementById('pollInterval').value,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('runningHubConfig', JSON.stringify(config));
+            showMessage('配置已保存到本地存储', 'success');
+        }
+
+        function loadSavedConfig() {
+            const saved = localStorage.getItem('runningHubConfig');
+            if (saved) {
+                try {
+                    const config = JSON.parse(saved);
+                    document.getElementById('baseUrl').value = config.baseUrl || 'https://www.runninghub.cn';
+                    document.getElementById('apiKey').value = config.apiKey || '';
+                    if (config.modelType !== undefined) {
+                        document.getElementById('modelType').value = config.modelType;
+                    }
+                    if (config.aspectRatio !== undefined) {
+                        document.getElementById('aspectRatio').value = config.aspectRatio;
+                    }
+                    if (config.resolution !== undefined) {
+                        document.getElementById('resolution').value = config.resolution;
+                    }
+                    document.getElementById('historyLimit').value = config.historyLimit || '20';
+                    document.getElementById('enableCompression').checked = config.enableCompression !== false;
+                    document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
+                    document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
+                    document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
+                    document.getElementById('pollInterval').value = config.pollInterval || '8';
+                } catch (e) {
+                    console.error('Failed to load config:', e);
+                }
+            }
+        }
+
+        function exportConfig() {
+            const config = {
+                baseUrl: document.getElementById('baseUrl').value,
+                apiKey: document.getElementById('apiKey').value,
+                modelType: document.getElementById('modelType').value,
+                aspectRatio: document.getElementById('aspectRatio').value,
+                resolution: document.getElementById('resolution').value,
+                historyLimit: document.getElementById('historyLimit').value,
+                enableCompression: document.getElementById('enableCompression').checked,
+                maxEdgeLength: document.getElementById('maxEdgeLength').value,
+                jpegQuality: document.getElementById('jpegQuality').value,
+                maxConcurrency: document.getElementById('maxConcurrency').value,
+                pollInterval: document.getElementById('pollInterval').value,
+                timestamp: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `runninghub-config-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showMessage('配置已导出', 'success');
+        }
+
+        function importConfig(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const config = JSON.parse(e.target.result);
+                    document.getElementById('baseUrl').value = config.baseUrl || 'https://www.runninghub.cn';
+                    document.getElementById('apiKey').value = config.apiKey || '';
+                    if (config.modelType !== undefined) {
+                        document.getElementById('modelType').value = config.modelType;
+                    }
+                    if (config.aspectRatio !== undefined) {
+                        document.getElementById('aspectRatio').value = config.aspectRatio;
+                    }
+                    if (config.resolution !== undefined) {
+                        document.getElementById('resolution').value = config.resolution;
+                    }
+                    document.getElementById('historyLimit').value = config.historyLimit || '20';
+                    document.getElementById('enableCompression').checked = config.enableCompression !== false;
+                    document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
+                    document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
+                    document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
+                    document.getElementById('pollInterval').value = config.pollInterval || '8';
+                    saveConfig();
+                    showMessage('配置已导入并保存', 'success');
+                } catch (err) {
+                    showMessage('配置文件格式错误', 'error');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // ==================== 任务队列管理 ====================
+        
+        // 创建新任务
+        function createTask(baseUrl, apiKey, prompt, aspectRatio, resolution, validImages, modelType) {
+            taskIdCounter++;
+            const localTaskId = `local-${Date.now()}-${taskIdCounter}`;
+            
+            const task = {
+                id: localTaskId,
+                baseUrl,
+                apiKey,
+                prompt,
+                aspectRatio,
+                resolution,
+                images: validImages,
+                modelType,
+                status: 'pending', // pending, submitting, polling, completed, failed
+                serverTaskId: null,
+                progress: '0%',
+                result: null,
+                error: null,
+                startTime: Date.now(),
+                pollTimer: null,
+                pollAttempts: 0
+            };
+            
+            taskQueue.push(task);
+            processTaskQueue();
+            return localTaskId;
+        }
+
+        // 处理任务队列
+        async function processTaskQueue() {
+            const maxConcurrency = parseInt(document.getElementById('maxConcurrency').value) || 3;
+            
+            // 如果当前运行任务已达最大并发数，则返回
+            if (runningTaskCount >= maxConcurrency) {
+                return;
+            }
+            
+            // 获取下一个待处理任务
+            const taskIndex = taskQueue.findIndex(t => t.status === 'pending');
+            if (taskIndex === -1) {
+                return;
+            }
+            
+            const task = taskQueue[taskIndex];
+            task.status = 'submitting';
+            runningTaskCount++;
+            
+            try {
+                await executeTask(task);
+            } catch (error) {
+                console.error('Task execution error:', error);
+                task.status = 'failed';
+                task.error = error.message;
+                runningTaskCount--;
+                updateTaskUI(task);
+                processTaskQueue(); // 尝试处理下一个任务
+            }
+        }
+
+        // 执行单个任务 - 适配 RunningHub API
+        async function executeTask(task) {
+            const validImages = task.images.filter(f => f !== null);
+            const isImageToImage = validImages.length > 0;
+            const isProModel = task.modelType === 'pro';
+            
+            // 根据模型类型和是否有图片选择端点
+            let endpoint;
+            if (isProModel) {
+                endpoint = isImageToImage 
+                    ? '/openapi/v2/rhart-image-n-pro/edit'
+                    : '/openapi/v2/rhart-image-n-pro/text-to-image';
+            } else {
+                endpoint = isImageToImage 
+                    ? '/openapi/v2/rhart-image-n-g31-flash/image-to-image'
+                    : '/openapi/v2/rhart-image-n-g31-flash/text-to-image';
+            }
+            
+            const url = `${task.baseUrl}${endpoint}`;
+            
+            // 构建请求体
+            const requestBody = {
+                prompt: task.prompt,
+                aspectRatio: task.aspectRatio || '9:16',
+                resolution: task.resolution || '1k'
+            };
+            
+            // 图生图需要上传图片
+            if (isImageToImage) {
+                // 将图片转换为 base64
+                const imageUrls = [];
+                for (const file of validImages) {
+                    const base64 = await fileToBase64(file);
+                    imageUrls.push(base64);
+                }
+                requestBody.imageUrls = imageUrls;
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${task.apiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.errorMessage || `HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            // 获取服务端任务ID并开始轮询
+            const serverTaskId = data.taskId;
+            if (!serverTaskId) {
+                throw new Error('未能获取任务ID');
+            }
+
+            task.serverTaskId = serverTaskId;
+            task.status = 'polling';
+            updateTaskUI(task);
+
+            // 开始轮询
+            startPolling(task);
+        }
+
+        // 文件转 Base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 开始轮询任务状态 - 适配 RunningHub API
+        function startPolling(task) {
+            const pollInterval = (parseInt(document.getElementById('pollInterval').value) || 8) * 1000;
+            const maxAttempts = 120; // 最多轮询120次
+            
+            const poll = async () => {
+                task.pollAttempts++;
+                
+                try {
+                    const response = await fetch(`${task.baseUrl}/openapi/v2/query`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${task.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            taskId: task.serverTaskId
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.errorMessage || `查询任务失败: HTTP ${response.status}`);
+                    }
+
+                    const status = data.status;
+
+                    if (status === 'SUCCESS') {
+                        // 任务完成
+                        clearInterval(task.pollTimer);
+                        task.status = 'completed';
+                        task.result = data;
+                        task.progress = '100%';
+                        runningTaskCount--;
+                        
+                        // 显示结果并保存到历史记录
+                        displayTaskResult(task);
+                        await saveTaskResultToHistory(task);
+                        updateTaskUI(task);
+                        
+                        // 尝试处理下一个任务
+                        processTaskQueue();
+                        
+                    } else if (status === 'FAILED') {
+                        // 任务失败
+                        clearInterval(task.pollTimer);
+                        task.status = 'failed';
+                        task.error = data.errorMessage || data.failedReason?.message || '任务生成失败';
+                        runningTaskCount--;
+                        updateTaskUI(task);
+                        processTaskQueue(); // 尝试处理下一个任务
+                        
+                    } else if (status === 'RUNNING' || status === 'QUEUED') {
+                        // 任务处理中，更新进度
+                        task.progress = `${Math.min(Math.round(task.pollAttempts / maxAttempts * 100), 99)}%`;
+                        updateTaskUI(task);
+                    }
+
+                    if (task.pollAttempts >= maxAttempts) {
+                        clearInterval(task.pollTimer);
+                        task.status = 'failed';
+                        task.error = '任务超时，请稍后在历史记录中查看结果';
+                        runningTaskCount--;
+                        updateTaskUI(task);
+                        processTaskQueue(); // 尝试处理下一个任务
+                    }
+                } catch (error) {
+                    clearInterval(task.pollTimer);
+                    task.status = 'failed';
+                    task.error = error.message;
+                    runningTaskCount--;
+                    updateTaskUI(task);
+                    processTaskQueue(); // 尝试处理下一个任务
+                    console.error('Poll error:', error);
+                }
+            };
+
+            // 立即执行一次，然后定期轮询
+            poll();
+            task.pollTimer = setInterval(poll, pollInterval);
+        }
+
+        // 显示任务结果
+        function displayTaskResult(task) {
+            const resultArea = document.getElementById('resultArea');
+            const resultImage = document.getElementById('resultImage');
+            const downloadLink = document.getElementById('downloadLink');
+            const jsonResult = document.getElementById('jsonResult');
+
+            resultArea.classList.remove('hidden');
+
+            // RunningHub API 返回的结果结构
+            if (task.result && task.result.results && task.result.results.length > 0 && task.result.results[0].url) {
+                resultImage.src = task.result.results[0].url;
+                downloadLink.href = task.result.results[0].url;
+                downloadLink.download = `generated-${Date.now()}.png`;
+                if (jsonResult) jsonResult.classList.add('hidden');
+            } else {
+                showMessage('返回数据格式异常', 'error');
+                if (jsonResult) {
+                    jsonResult.textContent = JSON.stringify(task.result, null, 2);
+                    jsonResult.classList.remove('hidden');
+                }
+            }
+
+            resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // 保存任务结果到历史记录
+        async function saveTaskResultToHistory(task) {
+            try {
+                let imageData = null;
+
+                // RunningHub API 返回的结果结构
+                if (task.result && task.result.results && task.result.results.length > 0 && task.result.results[0].url) {
+                    try {
+                        const response = await fetch(task.result.results[0].url);
+                        const blob = await response.blob();
+                        imageData = await blobToBase64(blob);
+                    } catch (e) {
+                        console.error('Failed to fetch image from URL:', e);
+                        imageData = task.result.results[0].url;
+                    }
+                }
+
+                if (imageData) {
+                    await addHistoryItem(imageData, task.prompt);
+                    await loadHistory();
+                }
+            } catch (error) {
+                console.error('Failed to save to history:', error);
+            }
+        }
+
+        // 当前选中的任务ID
+        let selectedTaskId = null;
+
+        // 更新任务UI
+        function updateTaskUI(changedTask) {
+            const taskContainer = document.getElementById('taskContainer');
+            const taskCountEl = document.getElementById('taskCount');
+            const btnText = document.getElementById('btnText');
+            const loader = document.getElementById('btnLoader');
+            
+            const pendingCount = taskQueue.filter(t => t.status === 'pending').length;
+            const runningCount = taskQueue.filter(t => t.status === 'submitting' || t.status === 'polling').length;
+            const completedCount = taskQueue.filter(t => t.status === 'completed').length;
+            const failedCount = taskQueue.filter(t => t.status === 'failed').length;
+            
+            // 更新按钮状态
+            if (runningCount > 0) {
+                btnText.textContent = '生成中...';
+                loader.classList.remove('hidden');
+            } else if (pendingCount > 0) {
+                btnText.textContent = '等待中...';
+                loader.classList.remove('hidden');
+            } else {
+                btnText.textContent = '生成图像';
+                loader.classList.add('hidden');
+            }
+            
+            // 更新任务数量
+            taskCountEl.textContent = taskQueue.length;
+            
+            // 渲染任务列表
+            if (taskQueue.length === 0) {
+                taskContainer.innerHTML = `
+                    <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
+                        暂无任务
+                    </div>
+                `;
+            } else {
+                taskContainer.innerHTML = taskQueue.slice().reverse().map(task => {
+                    const isSelected = task.id === selectedTaskId;
+                    const progress = parseInt(task.progress) || 0;
+                    const statusText = {
+                        'pending': '等待中',
+                        'submitting': '提交中',
+                        'polling': '生成中',
+                        'completed': '已完成',
+                        'failed': '失败'
+                    }[task.status] || task.status;
+                    
+                    return `
+                        <div class="task-item ${task.status} ${isSelected ? 'selected' : ''}" 
+                             onclick="selectTask('${task.id}')">
+                            <div class="task-header">
+                                <span class="task-id">${task.id.slice(-8)}</span>
+                                <span class="task-status ${task.status}">${statusText}</span>
+                            </div>
+                            <div class="task-prompt" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt)}</div>
+                            ${task.status === 'polling' || task.status === 'submitting' ? `
+                                <div class="task-progress-bar">
+                                    <div class="task-progress-fill" style="width: ${progress}%"></div>
+                                </div>
+                                <div class="task-progress-text">${progress}%</div>
+                            ` : ''}
+                            ${task.status === 'failed' ? `
+                                <div class="task-progress-text" style="color: #ef4444;">${escapeHtml(task.error || '未知错误')}</div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // 如果有选中的任务，显示调试信息
+            if (selectedTaskId) {
+                renderTaskDebugPanel();
+            }
+            
+            // 如果有状态变化，显示消息
+            if (changedTask) {
+                if (changedTask.status === 'completed') {
+                    showMessage(`任务 ${changedTask.id.slice(-4)} 完成`, 'success');
+                } else if (changedTask.status === 'failed') {
+                    showMessage(`任务 ${changedTask.id.slice(-4)} 失败: ${changedTask.error}`, 'error');
+                }
+            }
+        }
+
+        // 选择任务
+        function selectTask(taskId) {
+            selectedTaskId = taskId;
+            updateTaskUI();
+        }
+
+        // 渲染任务调试面板
+        function renderTaskDebugPanel() {
+            const task = taskQueue.find(t => t.id === selectedTaskId);
+            if (!task) return;
+            
+            const debugInfo = {
+                id: task.id,
+                serverTaskId: task.serverTaskId,
+                status: task.status,
+                progress: task.progress,
+                prompt: task.prompt,
+                aspectRatio: task.aspectRatio,
+                resolution: task.resolution,
+                imageCount: task.images.length,
+                isImageToImage: task.images.length > 0,
+                error: task.error,
+                pollAttempts: task.pollAttempts,
+                startTime: new Date(task.startTime).toLocaleString(),
+                result: task.result ? '已返回数据' : null
+            };
+            
+            // 检查是否已存在调试面板
+            let debugPanel = document.getElementById('taskDebugPanel');
+            if (!debugPanel) {
+                debugPanel = document.createElement('div');
+                debugPanel.id = 'taskDebugPanel';
+                debugPanel.className = 'task-debug-panel';
+                document.getElementById('taskContainer').parentNode.appendChild(debugPanel);
+            }
+            
+            debugPanel.innerHTML = `
+                <div class="task-debug-header">
+                    <span>任务调试信息</span>
+                    <button onclick="closeTaskDebugPanel()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
+                </div>
+                <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
+            `;
+        }
+
+        // 关闭任务调试面板
+        function closeTaskDebugPanel() {
+            selectedTaskId = null;
+            const debugPanel = document.getElementById('taskDebugPanel');
+            if (debugPanel) {
+                debugPanel.remove();
+            }
+            updateTaskUI();
+        }
+
+        // 清理所有任务
+        function clearAllTasks() {
+            if (taskQueue.length === 0) return;
+            
+            // 停止所有轮询定时器
+            taskQueue.forEach(task => {
+                if (task.pollTimer) {
+                    clearInterval(task.pollTimer);
+                }
+            });
+            
+            taskQueue = [];
+            runningTaskCount = 0;
+            selectedTaskId = null;
+            
+            const debugPanel = document.getElementById('taskDebugPanel');
+            if (debugPanel) {
+                debugPanel.remove();
+            }
+            
+            updateTaskUI();
+            showMessage('任务列表已清理', 'success');
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 图像生成 - 使用任务队列 - 适配 RunningHub API
+        async function generateImage() {
+            const baseUrl = document.getElementById('baseUrl').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const prompt = getParsedPromptText();
+            const aspectRatio = document.getElementById('aspectRatio').value;
+            const resolution = document.getElementById('resolution').value;
+            const modelType = document.getElementById('modelType').value;
+
+            if (!baseUrl || !apiKey) {
+                showMessage('请填写 API Base URL 和 API Key', 'error');
+                return;
+            }
+            if (!prompt) {
+                showMessage('请输入提示词', 'error');
+                return;
+            }
+
+            const validImages = imageFiles.filter(f => f !== null);
+
+            hideMessage();
+
+            // 创建新任务并加入队列
+            const taskId = createTask(baseUrl, apiKey, prompt, aspectRatio, resolution, validImages, modelType);
+            
+            showMessage('任务已添加到队列', 'success');
+            
+            // 更新按钮状态
+            updateTaskUI({ status: 'pending' });
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function showMessage(msg, type) {
+            const area = document.getElementById('messageArea');
+            area.textContent = msg;
+            area.classList.remove('hidden');
+            area.style.cssText = '';
+
+            if (type === 'error') {
+                area.style.background = 'rgba(239, 68, 68, 0.2)';
+                area.style.color = '#ef4444';
+                area.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            } else {
+                area.style.background = 'rgba(34, 197, 94, 0.2)';
+                area.style.color = '#22c55e';
+                area.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+            }
+        }
+
+        function hideMessage() {
+            document.getElementById('messageArea').classList.add('hidden');
+        }
+
+        // 键盘快捷键关闭模态框
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeImageModal();
+            }
+        });
+    </script>
+</body>
+
+</html>
