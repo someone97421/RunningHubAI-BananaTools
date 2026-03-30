@@ -1088,7 +1088,7 @@
                     <div class="space-y-1">
                         <label class="text-xs font-medium" style="color: var(--text-muted);">模型选择</label>
                         <select id="modelType" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="v2">V2模型 (0.08元/张)</option>
+                            <option value="v2" selected>V2模型 (0.08元/张)</option>
                             <option value="pro">Pro模型 (0.2-0.3元/张)</option>
                         </select>
                     </div>
@@ -1103,8 +1103,8 @@
                             <option value="4:3">4:3 (横向)</option>
                             <option value="4:5">4:5 (纵向)</option>
                             <option value="5:4">5:4 (横向)</option>
-                            <option value="9:16" selected>9:16 (手机竖屏)</option>
-                            <option value="16:9">16:9 (宽屏)</option>
+                            <option value="9:16">9:16 (手机竖屏)</option>
+                            <option value="16:9" selected>16:9 (宽屏)</option>
                             <option value="21:9">21:9 (超宽屏)</option>
                             <option value="1:4">1:4 (长图/海报)</option>
                             <option value="4:1">4:1 (Banner)</option>
@@ -1116,8 +1116,8 @@
                         <label class="text-xs font-medium" style="color: var(--text-muted);">分辨率</label>
                         <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
                             <option value="">默认 (1k)</option>
-                            <option value="1k" selected>1K</option>
-                            <option value="2k">2K</option>
+                            <option value="1k">1K</option>
+                            <option value="2k" selected>2K</option>
                             <option value="4k">4K</option>
                         </select>
                     </div>
@@ -1262,7 +1262,39 @@
             initDB().then(() => {
                 loadHistory();
             });
+            setupAutoSave();
         });
+
+        function setupAutoSave() {
+            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'historyLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', autoSaveConfig);
+                    if (el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'password' || el.type === 'number')) {
+                        el.addEventListener('blur', autoSaveConfig);
+                    }
+                }
+            });
+        }
+
+        function autoSaveConfig() {
+            const config = {
+                baseUrl: document.getElementById('baseUrl').value,
+                apiKey: document.getElementById('apiKey').value,
+                modelType: document.getElementById('modelType').value,
+                aspectRatio: document.getElementById('aspectRatio').value,
+                resolution: document.getElementById('resolution').value,
+                historyLimit: document.getElementById('historyLimit').value,
+                enableCompression: document.getElementById('enableCompression').checked,
+                maxEdgeLength: document.getElementById('maxEdgeLength').value,
+                jpegQuality: document.getElementById('jpegQuality').value,
+                maxConcurrency: document.getElementById('maxConcurrency').value,
+                pollInterval: document.getElementById('pollInterval').value,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('runningHubConfig', JSON.stringify(config));
+        }
 
         // ==================== 主题管理 ====================
         function initTheme() {
