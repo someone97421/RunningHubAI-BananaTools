@@ -1489,6 +1489,17 @@
                                 从历史记录选择
                             </button>
                         </div>
+                        <!-- 拖拽/粘贴上传区 -->
+                        <div id="cropDropZone"
+                            class="mt-3 border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer"
+                            style="border-color: var(--border-input); background: var(--slot-bg); color: var(--text-muted);"
+                            onclick="document.getElementById('cropFileInput').click()">
+                            <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p class="text-sm">拖拽图片到此处，或按 <kbd style="background: var(--bg-input); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-input); font-size: 12px;">Ctrl+V</kbd> 粘贴</p>
+                        </div>
                     </div>
 
                     <!-- 网格选择 -->
@@ -1509,6 +1520,8 @@
                             <button class="grid-option-btn" onclick="setCropGrid(4, 1)">4 × 1</button>
                             <button class="grid-option-btn" onclick="setCropGrid(2, 3)">2 × 3</button>
                             <button class="grid-option-btn" onclick="setCropGrid(3, 2)">3 × 2</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(4, 4)">4 × 4</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(5, 5)">5 × 5</button>
                         </div>
                     </div>
 
@@ -3430,13 +3443,74 @@
         function handleCropFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+            loadFileIntoCropTool(file);
+            event.target.value = '';
+        }
+
+        function loadFileIntoCropTool(file) {
+            if (!file.type.startsWith('image/')) {
+                showMessage('请选择图片文件', 'error');
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (e) => {
                 setCropImage(e.target.result);
             };
             reader.readAsDataURL(file);
-            event.target.value = '';
         }
+
+        // 裁切工具拖拽和粘贴支持
+        function initCropDropZone() {
+            const dropZone = document.getElementById('cropDropZone');
+            if (!dropZone) return;
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.style.borderColor = 'var(--accent-blue)';
+                dropZone.style.background = 'rgba(59, 130, 246, 0.1)';
+            });
+
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.style.borderColor = 'var(--border-input)';
+                dropZone.style.background = 'var(--slot-bg)';
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.style.borderColor = 'var(--border-input)';
+                dropZone.style.background = 'var(--slot-bg)';
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    loadFileIntoCropTool(files[0]);
+                }
+            });
+
+            // Ctrl+V 粘贴支持（整个裁切工具区域）
+            const cropDrawer = document.getElementById('cropToolDrawer');
+            document.addEventListener('paste', (e) => {
+                // 如果焦点在富文本编辑器中则不拦截
+                if (document.activeElement.id === 'prompt' || document.activeElement.isContentEditable) return;
+                // 裁切工具面板必须展开
+                if (!isCropToolOpen) return;
+
+                const items = e.clipboardData.items;
+                for (let item of items) {
+                    if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const blob = item.getAsFile();
+                        loadFileIntoCropTool(blob);
+                        break;
+                    }
+                }
+            });
+        }
+
+        // 在页面加载时初始化拖拽区
+        document.addEventListener('DOMContentLoaded', initCropDropZone);
 
         function setCropImage(src) {
             const img = new Image();
