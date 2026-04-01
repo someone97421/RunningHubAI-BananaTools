@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RunningHub AI 图像生成器</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -788,6 +789,192 @@
         input:checked+.toggle-slider:before {
             transform: translateX(20px);
         }
+
+        /* 裁图工具样式 */
+        .crop-tool-drawer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out, opacity 0.3s ease;
+            opacity: 0;
+        }
+
+        .crop-tool-drawer.open {
+            max-height: 2000px;
+            opacity: 1;
+        }
+
+        .grid-option-btn {
+            padding: 6px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-input);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .grid-option-btn:hover {
+            background: var(--btn-secondary-hover);
+        }
+
+        .grid-option-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        .crop-preview-wrapper {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-input);
+        }
+
+        .crop-preview-wrapper canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+
+        .crop-result-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .crop-piece {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background: var(--slot-bg);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            aspect-ratio: auto;
+        }
+
+        .crop-piece:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            border-color: var(--accent-blue);
+        }
+
+        .crop-piece img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .crop-piece-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .crop-piece:hover .crop-piece-overlay {
+            opacity: 1;
+        }
+
+        .crop-piece-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .crop-piece-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.1);
+        }
+
+        .crop-piece-label {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: var(--accent-blue);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .crop-history-picker {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9998;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .crop-history-picker.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .crop-history-picker-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .crop-history-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .crop-history-picker-item {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .crop-history-picker-item:hover {
+            border-color: var(--accent-blue);
+            transform: scale(1.05);
+        }
+
+        .crop-history-picker-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
     </style>
 </head>
 
@@ -1155,6 +1342,13 @@
                                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
                         </svg>
                     </button>
+                    <button onclick="sendResultToCrop()" class="result-zoom-btn" title="裁切图片"
+                        style="background: var(--accent-purple);">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </button>
                     <a id="downloadLink" href="#" target="_blank" download
                         class="px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
                         style="background: var(--accent-blue); color: white;">
@@ -1223,6 +1417,168 @@
                     <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
                         暂无历史记录
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 裁图工具板块 -->
+        <div class="glass-panel rounded-2xl overflow-hidden">
+            <button onclick="toggleCropTool()"
+                class="w-full px-6 py-4 flex items-center justify-between hover:bg-opacity-50 transition-colors"
+                style="background: rgba(128,128,128,0.05);">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-lg font-semibold">裁图工具</span>
+                    <span class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted);">网格切割 | 批量下载</span>
+                </div>
+                <svg id="cropDrawerIcon" class="w-6 h-6 drawer-toggle" style="color: var(--text-secondary);"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            <div id="cropToolDrawer" class="crop-tool-drawer">
+                <div class="p-6 space-y-5 border-t" style="border-color: var(--border-color);">
+
+                    <!-- 图片来源 -->
+                    <div>
+                        <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            选择图片
+                        </h3>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="document.getElementById('cropFileInput').click()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--btn-secondary); color: var(--text-primary); border: 1px solid var(--border-input);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                </svg>
+                                上传图片
+                            </button>
+                            <input type="file" id="cropFileInput" accept="image/*" style="display:none;"
+                                onchange="handleCropFileUpload(event)">
+                            <button onclick="sendResultToCrop()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--btn-secondary); color: var(--text-primary); border: 1px solid var(--border-input);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                使用当前结果图
+                            </button>
+                            <button onclick="openHistoryPickerForCrop()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--btn-secondary); color: var(--text-primary); border: 1px solid var(--border-input);">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                从历史记录选择
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 网格选择 -->
+                    <div>
+                        <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-green);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                            网格模式
+                        </h3>
+                        <div class="flex gap-3" id="cropGridOptions">
+                            <button class="grid-option-btn active" onclick="setCropGrid(3, 3)">3 × 3</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(2, 2)">2 × 2</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(4, 1)">1 × 4</button>
+                            <button class="grid-option-btn" onclick="setCropGrid(3, 2)">2 × 3</button>
+                        </div>
+                    </div>
+
+                    <!-- 预览区 -->
+                    <div id="cropPreviewArea" class="hidden">
+                        <h3 class="text-sm font-semibold mb-3 flex items-center gap-2"
+                            style="color: var(--text-secondary);">
+                            <svg class="w-4 h-4" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            预览
+                        </h3>
+                        <div class="flex justify-center">
+                            <div class="crop-preview-wrapper">
+                                <canvas id="cropCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="flex justify-center mt-4">
+                            <button onclick="executeCrop()"
+                                class="px-8 py-2.5 rounded-xl font-semibold text-sm shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2"
+                                style="background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); color: white;">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                                </svg>
+                                开始切割
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 切割结果 -->
+                    <div id="cropResultArea" class="hidden">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-semibold flex items-center gap-2"
+                                style="color: var(--text-secondary);">
+                                <svg class="w-4 h-4" style="color: var(--accent-green);" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                切割结果
+                            </h3>
+                            <button onclick="downloadAllCropPieces()"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                                style="background: var(--accent-blue); color: white;">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                打包下载全部
+                            </button>
+                        </div>
+                        <div id="cropResultGrid" class="crop-result-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史图片选择弹窗 (用于裁切工具) -->
+        <div id="cropHistoryPicker" class="crop-history-picker" onclick="closeCropHistoryPicker(event)">
+            <div class="crop-history-picker-content" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold" style="color: var(--text-primary);">选择历史图片</h3>
+                    <button onclick="closeCropHistoryPicker()" class="text-sm px-3 py-1 rounded-lg"
+                        style="background: var(--btn-secondary); color: var(--text-secondary);">关闭</button>
+                </div>
+                <div id="cropHistoryPickerGrid" class="crop-history-picker-grid">
+                    <div class="text-center py-8 text-sm" style="color: var(--text-muted); grid-column: 1 / -1;">暂无历史记录</div>
                 </div>
             </div>
         </div>
@@ -1518,6 +1874,9 @@
                             </button>
                             <button class="history-btn" onclick="openImageModal('${item.imageData}')" title="放大预览">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                            </button>
+                            <button class="history-btn" onclick="sendHistoryToCrop(${item.id})" title="裁切">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                             </button>
                             <button class="history-btn" onclick="downloadHistoryImage(${item.id})" title="下载">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -3032,8 +3391,322 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeImageModal();
+                closeCropHistoryPicker();
             }
         });
+
+        // ==================== 裁图工具 ====================
+        let isCropToolOpen = false;
+        let cropImage = null; // Image element
+        let cropGridCols = 3;
+        let cropGridRows = 3;
+        let cropPieces = []; // Array of data URLs
+
+        function toggleCropTool() {
+            const drawer = document.getElementById('cropToolDrawer');
+            const icon = document.getElementById('cropDrawerIcon');
+            isCropToolOpen = !isCropToolOpen;
+            if (isCropToolOpen) {
+                drawer.classList.add('open');
+                icon.classList.add('open');
+            } else {
+                drawer.classList.remove('open');
+                icon.classList.remove('open');
+            }
+        }
+
+        function ensureCropToolOpen() {
+            if (!isCropToolOpen) {
+                toggleCropTool();
+            }
+            // 滚动到裁切工具
+            setTimeout(() => {
+                document.getElementById('cropToolDrawer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+
+        function handleCropFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setCropImage(e.target.result);
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        }
+
+        function setCropImage(src) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                cropImage = img;
+                renderCropPreview();
+                document.getElementById('cropPreviewArea').classList.remove('hidden');
+                document.getElementById('cropResultArea').classList.add('hidden');
+                cropPieces = [];
+                ensureCropToolOpen();
+            };
+            img.onerror = () => {
+                showMessage('裁切工具：图片加载失败', 'error');
+            };
+            img.src = src;
+        }
+
+        function setCropGrid(cols, rows) {
+            cropGridCols = cols;
+            cropGridRows = rows;
+
+            // 更新按钮状态
+            document.querySelectorAll('#cropGridOptions .grid-option-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (cropImage) {
+                renderCropPreview();
+                // 如果之前已切割过，清空结果
+                document.getElementById('cropResultArea').classList.add('hidden');
+                cropPieces = [];
+            }
+        }
+
+        function renderCropPreview() {
+            if (!cropImage) return;
+
+            const canvas = document.getElementById('cropCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // 限制预览尺寸
+            const maxW = 600;
+            const maxH = 500;
+            let w = cropImage.naturalWidth;
+            let h = cropImage.naturalHeight;
+            const scale = Math.min(maxW / w, maxH / h, 1);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+
+            canvas.width = w;
+            canvas.height = h;
+
+            // 绘制图片
+            ctx.drawImage(cropImage, 0, 0, w, h);
+
+            // 绘制网格线
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 6]);
+
+            // 垂直线
+            for (let i = 1; i < cropGridCols; i++) {
+                const x = Math.round(w * i / cropGridCols);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+
+            // 水平线
+            for (let j = 1; j < cropGridRows; j++) {
+                const y = Math.round(h * j / cropGridRows);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            // 阴影描边让线条更清晰
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([8, 6]);
+            ctx.lineDashOffset = 4;
+
+            for (let i = 1; i < cropGridCols; i++) {
+                const x = Math.round(w * i / cropGridCols);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+
+            for (let j = 1; j < cropGridRows; j++) {
+                const y = Math.round(h * j / cropGridRows);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+        }
+
+        function executeCrop() {
+            if (!cropImage) {
+                showMessage('请先选择一张图片', 'error');
+                return;
+            }
+
+            const w = cropImage.naturalWidth;
+            const h = cropImage.naturalHeight;
+            const pieceW = Math.floor(w / cropGridCols);
+            const pieceH = Math.floor(h / cropGridRows);
+
+            cropPieces = [];
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+
+            for (let row = 0; row < cropGridRows; row++) {
+                for (let col = 0; col < cropGridCols; col++) {
+                    const sx = col * pieceW;
+                    const sy = row * pieceH;
+                    // 最后一列/行取到边缘
+                    const sw = (col === cropGridCols - 1) ? (w - sx) : pieceW;
+                    const sh = (row === cropGridRows - 1) ? (h - sy) : pieceH;
+
+                    tempCanvas.width = sw;
+                    tempCanvas.height = sh;
+                    tempCtx.drawImage(cropImage, sx, sy, sw, sh, 0, 0, sw, sh);
+
+                    cropPieces.push({
+                        dataUrl: tempCanvas.toDataURL('image/png'),
+                        label: `${row + 1}-${col + 1}`,
+                        row, col
+                    });
+                }
+            }
+
+            renderCropResults();
+        }
+
+        function renderCropResults() {
+            const resultArea = document.getElementById('cropResultArea');
+            const grid = document.getElementById('cropResultGrid');
+            resultArea.classList.remove('hidden');
+
+            grid.style.gridTemplateColumns = `repeat(${cropGridCols}, 1fr)`;
+            grid.innerHTML = cropPieces.map((piece, idx) => `
+                <div class="crop-piece">
+                    <img src="${piece.dataUrl}" alt="切片 ${piece.label}">
+                    <span class="crop-piece-label">${piece.label}</span>
+                    <div class="crop-piece-overlay">
+                        <button class="crop-piece-btn" onclick="openImageModal('${piece.dataUrl}')" title="放大预览">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                        </button>
+                        <button class="crop-piece-btn" onclick="downloadCropPiece(${idx})" title="下载此切片">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function downloadCropPiece(index) {
+            const piece = cropPieces[index];
+            if (!piece) return;
+            const link = document.createElement('a');
+            link.href = piece.dataUrl;
+            link.download = `crop-${piece.label}-${Date.now()}.png`;
+            link.click();
+        }
+
+        async function downloadAllCropPieces() {
+            if (cropPieces.length === 0) {
+                showMessage('没有可下载的切片', 'error');
+                return;
+            }
+
+            if (typeof JSZip === 'undefined') {
+                showMessage('JSZip 库尚未加载，请稍后再试', 'error');
+                return;
+            }
+
+            try {
+                const zip = new JSZip();
+                const folder = zip.folder('crop-pieces');
+
+                cropPieces.forEach((piece, idx) => {
+                    // 从 data URL 提取 base64 数据
+                    const base64Data = piece.dataUrl.split(',')[1];
+                    folder.file(`crop-${piece.label}.png`, base64Data, { base64: true });
+                });
+
+                const blob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `crop-${cropGridRows}x${cropGridCols}-${Date.now()}.zip`;
+                link.click();
+                URL.revokeObjectURL(url);
+
+                showMessage(`已打包 ${cropPieces.length} 张切片`, 'success');
+            } catch (error) {
+                console.error('ZIP download failed:', error);
+                showMessage('打包下载失败: ' + error.message, 'error');
+            }
+        }
+
+        // 从结果图发送到裁切工具
+        function sendResultToCrop() {
+            const resultImage = document.getElementById('resultImage');
+            if (!resultImage || !resultImage.src || resultImage.src === window.location.href) {
+                showMessage('暂无结果图片可裁切', 'error');
+                return;
+            }
+            setCropImage(resultImage.src);
+        }
+
+        // 从历史记录发送到裁切工具
+        async function sendHistoryToCrop(id) {
+            try {
+                const history = await getAllHistory();
+                const item = history.find(h => h.id === id);
+                if (item && item.imageData) {
+                    setCropImage(item.imageData);
+                } else {
+                    showMessage('未找到历史图片', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load history image for crop:', error);
+                showMessage('加载历史图片失败', 'error');
+            }
+        }
+
+        // 弹窗选择历史图片
+        async function openHistoryPickerForCrop() {
+            try {
+                const history = await getAllHistory();
+                const picker = document.getElementById('cropHistoryPicker');
+                const grid = document.getElementById('cropHistoryPickerGrid');
+
+                if (history.length === 0) {
+                    grid.innerHTML = '<div class="text-center py-8 text-sm" style="color: var(--text-muted); grid-column: 1 / -1;">暂无历史记录</div>';
+                } else {
+                    grid.innerHTML = history.map(item => `
+                        <div class="crop-history-picker-item" onclick="pickHistoryForCrop('${item.imageData.substring(0, 50)}', ${item.id})">
+                            <img src="${item.imageData}" alt="History" loading="lazy">
+                        </div>
+                    `).join('');
+                }
+
+                picker.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } catch (error) {
+                console.error('Failed to open history picker:', error);
+                showMessage('加载历史记录失败', 'error');
+            }
+        }
+
+        async function pickHistoryForCrop(_, id) {
+            closeCropHistoryPicker();
+            await sendHistoryToCrop(id);
+        }
+
+        function closeCropHistoryPicker(event) {
+            const picker = document.getElementById('cropHistoryPicker');
+            picker.classList.remove('active');
+            document.body.style.overflow = '';
+        }
     </script>
 </body>
 
