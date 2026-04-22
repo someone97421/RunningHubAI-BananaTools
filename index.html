@@ -880,6 +880,9 @@
         .crop-result-grid {
             display: grid;
             gap: 12px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding-right: 4px;
         }
 
         .crop-piece {
@@ -1199,7 +1202,7 @@
                                     <div class="flex items-center justify-between">
                                         <label class="text-sm" style="color: var(--text-secondary);">启用图片压缩</label>
                                         <label class="toggle-switch">
-                                            <input type="checkbox" id="enableCompression" checked>
+                                            <input type="checkbox" id="enableCompression">
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -1705,7 +1708,7 @@
         const STORE_NAME = 'history';
         let db = null;
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             initTheme();
             initImageGrid();
             loadSavedConfig();
@@ -1715,12 +1718,13 @@
                 loadHistory();
             });
             setupAutoSave();
-            initProvider();
+            await initProvider();
         });
 
-        function initProvider() {
+        async function initProvider() {
             const savedProvider = localStorage.getItem('runningHubActiveProvider') || 'nanobanana';
             setActiveProvider(savedProvider, { preserveCurrent: false });
+            await loadWorkspaceState();
         }
 
         function setupAutoSave() {
@@ -1734,6 +1738,14 @@
                     }
                 }
             });
+
+            // 监听提示词变化
+            const promptEditor = document.getElementById('prompt');
+            if (promptEditor) {
+                promptEditor.addEventListener('input', () => {
+                    autoSaveConfig();
+                });
+            }
         }
 
         function autoSaveConfig() {
@@ -1755,6 +1767,68 @@
             };
             localStorage.setItem('runningHubConfig', JSON.stringify(config));
             localStorage.setItem('runningHubProviderSettings', JSON.stringify(providerSettings));
+
+            // 异步保存工作区状态
+            saveWorkspaceState().catch(console.error);
+        }
+
+        async function saveWorkspaceState() {
+            const promptText = getParsedPromptText();
+
+            const imageDataList = [];
+            for (let i = 0; i < imageFiles.length; i++) {
+                if (imageFiles[i]) {
+                    try {
+                        const dataUrl = await fileToBase64(imageFiles[i]);
+                        imageDataList.push({
+                            index: i,
+                            dataUrl: dataUrl,
+                            name: imageFiles[i].name || `image${i + 1}.png`,
+                            type: imageFiles[i].type || 'image/png'
+                        });
+                    } catch (e) {
+                        console.error('Failed to serialize image:', e);
+                    }
+                }
+            }
+
+            const workspace = {
+                prompt: promptText,
+                images: imageDataList,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('runningHubWorkspace', JSON.stringify(workspace));
+        }
+
+        async function loadWorkspaceState() {
+            const saved = localStorage.getItem('runningHubWorkspace');
+            if (!saved) return;
+
+            try {
+                const workspace = JSON.parse(saved);
+
+                // 恢复提示词
+                if (workspace.prompt) {
+                    const promptEditor = document.getElementById('prompt');
+                    promptEditor.innerHTML = parsePromptWithMentions(workspace.prompt);
+                }
+
+                // 恢复参考图片
+                if (workspace.images && workspace.images.length > 0) {
+                    imageFiles.length = 0;
+                    for (const img of workspace.images) {
+                        try {
+                            const file = await dataURLToFile(img.dataUrl, img.name);
+                            imageFiles[img.index] = file;
+                        } catch (err) {
+                            console.error(`Failed to restore image at index ${img.index}:`, err);
+                        }
+                    }
+                    renderImageGrid();
+                }
+            } catch (e) {
+                console.error('Failed to load workspace:', e);
+            }
         }
 
         function getActiveProfile() {
@@ -2223,6 +2297,7 @@
                     ? `已复用提示词和 ${imgCount} 张参考图` 
                     : `已复用提示词`;
                 showMessage(msg, 'success');
+                autoSaveConfig();
 
             } catch (error) {
                 console.error('Failed to reuse prompt:', error);
@@ -2865,6 +2940,7 @@
         function handleImageFile(file, index) {
             imageFiles[index] = file;
             renderImageGrid();
+            autoSaveConfig();
         }
 
         function removeImage(e, index) {
@@ -2881,6 +2957,7 @@
             if (isMentionPopupOpen) {
                 renderMentionList();
             }
+            autoSaveConfig();
         }
 
         function updatePromptMentionsAfterRemoval(removedIndex) {
@@ -2915,6 +2992,7 @@
                     nextSibling.remove();
                 }
             });
+            autoSaveConfig();
         }
 
         function setupPasteListener() {
@@ -2959,6 +3037,7 @@
                             imageFiles[targetIndex] = file;
                             renderImageGrid();
                         }
+                        autoSaveConfig();
                         break;
                     }
                 }
@@ -3007,7 +3086,7 @@
             document.getElementById('baseUrl').value = config?.baseUrl || 'https://www.runninghub.cn';
             document.getElementById('apiKey').value = config?.apiKey || '';
             document.getElementById('historyLimit').value = config?.historyLimit || '20';
-            document.getElementById('enableCompression').checked = config?.enableCompression !== false;
+            document.getElementById('enableCompression').checked = config?.enableCompression === true;
             document.getElementById('maxEdgeLength').value = config?.maxEdgeLength || '2560';
             document.getElementById('jpegQuality').value = config?.jpegQuality || '0.9';
             document.getElementById('maxConcurrency').value = config?.maxConcurrency || '3';
@@ -3064,7 +3143,7 @@
                     document.getElementById('baseUrl').value = config.baseUrl || 'https://www.runninghub.cn';
                     document.getElementById('apiKey').value = config.apiKey || '';
                     document.getElementById('historyLimit').value = config.historyLimit || '20';
-                    document.getElementById('enableCompression').checked = config.enableCompression !== false;
+                    document.getElementById('enableCompression').checked = config.enableCompression === true;
                     document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
                     document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
                     document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
