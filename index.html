@@ -163,6 +163,42 @@
             display: none;
         }
 
+        .model-tabs {
+            display: inline-flex;
+            gap: 8px;
+            padding: 4px;
+            border-radius: 9999px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+        }
+
+        .model-tab {
+            border: none;
+            border-radius: 9999px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .model-tab:hover {
+            color: var(--text-primary);
+            background: rgba(148, 163, 184, 0.12);
+        }
+
+        .model-tab.active {
+            color: white;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            box-shadow: 0 8px 18px -10px rgba(59, 130, 246, 0.75);
+        }
+
+        .hidden-param {
+            display: none;
+        }
+
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -997,7 +1033,6 @@
                 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 RunningHub AI 图像生成器
             </h1>
-            <p class="text-slate-400 text-sm" style="color: var(--text-secondary);">支持文生图 / 图生图 | 自动模式切换 | 输入 @ 引用图像</p>
         </div>
 
         <!-- 第一排：设置区（可关闭抽屉） -->
@@ -1237,17 +1272,23 @@
 
             <!-- 右侧：提示词输入区 -->
             <div class="glass-panel rounded-2xl p-5">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        提示词
-                    </h2>
-                    <span class="text-xs px-2 py-1 rounded"
-                        style="background: var(--bg-input); color: var(--text-muted);">输入 @ 引用图片</span>
+                <div class="flex flex-col gap-4 mb-4">
+                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                        <h2 class="text-lg font-semibold flex items-center gap-2">
+                            <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            提示词
+                        </h2>
+                        <div class="model-tabs" role="tablist" aria-label="模型切换">
+                            <button type="button" id="tab-nanobanana" class="model-tab active" role="tab"
+                                aria-selected="true" onclick="setActiveProvider('nanobanana')">NanoBanana</button>
+                            <button type="button" id="tab-gpt-image-2" class="model-tab" role="tab"
+                                aria-selected="false" onclick="setActiveProvider('gpt-image-2')">GPT-image2</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="textarea-wrapper">
@@ -1270,43 +1311,22 @@
                     </div>
                 </div>
 
-                <!-- 生图参数：宽高比、分辨率和模型选择 -->
-                <div class="grid grid-cols-3 gap-3 mt-4">
-                    <div class="space-y-1">
+                <!-- 生图参数：按模型切换 -->
+                <div class="grid grid-cols-3 gap-3 mt-4" id="paramGrid">
+                    <div class="space-y-1" id="modelTypeGroup">
                         <label class="text-xs font-medium" style="color: var(--text-muted);">模型选择</label>
                         <select id="modelType" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="v2" selected>V2模型 (0.08元/张)</option>
-                            <option value="pro">Pro模型 (0.2-0.3元/张)</option>
+                            <option value="v2" selected>V2模型 (1k/2k 0.16元/张, 4k 0.2元/张)</option>
+                            <option value="pro">Pro模型 (1k/2k 0.4元/张, 4k 0.5元/张)</option>
                         </select>
                     </div>
                     <div class="space-y-1">
-                        <label class="text-xs font-medium" style="color: var(--text-muted);">宽高比</label>
-                        <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="">默认 (Default)</option>
-                            <option value="1:1">1:1 (正方形)</option>
-                            <option value="2:3">2:3 (纵向)</option>
-                            <option value="3:2">3:2 (横向)</option>
-                            <option value="3:4">3:4 (纵向)</option>
-                            <option value="4:3">4:3 (横向)</option>
-                            <option value="4:5">4:5 (纵向)</option>
-                            <option value="5:4">5:4 (横向)</option>
-                            <option value="9:16">9:16 (手机竖屏)</option>
-                            <option value="16:9" selected>16:9 (宽屏)</option>
-                            <option value="21:9">21:9 (超宽屏)</option>
-                            <option value="1:4">1:4 (长图/海报)</option>
-                            <option value="4:1">4:1 (Banner)</option>
-                            <option value="1:8">1:8 (极长图)</option>
-                            <option value="8:1">8:1 (极宽图)</option>
-                        </select>
+                        <label class="text-xs font-medium" style="color: var(--text-muted);" id="aspectRatioLabel">宽高比</label>
+                        <select id="aspectRatio" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-xs font-medium" style="color: var(--text-muted);">分辨率</label>
-                        <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="">默认 (1k)</option>
-                            <option value="1k">1K</option>
-                            <option value="2k" selected>2K</option>
-                            <option value="4k">4K</option>
-                        </select>
+                    <div class="space-y-1" id="resolutionGroup">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);" id="resolutionLabel">分辨率</label>
+                        <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
                     </div>
                 </div>
 
@@ -1611,6 +1631,67 @@
         let savedRange = null;
         let isSettingsDrawerOpen = false;
         let currentTheme = 'dark';
+        let activeProvider = 'nanobanana';
+
+        const MODEL_PROFILES = {
+            nanobanana: {
+                id: 'nanobanana',
+                tabId: 'tab-nanobanana',
+                label: 'NanoBanana',
+                requestType: 'runninghub',
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: [
+                    { value: '', label: '默认 (Default)' },
+                    { value: '1:1', label: '1:1 (正方形)' },
+                    { value: '2:3', label: '2:3 (纵向)' },
+                    { value: '3:2', label: '3:2 (横向)' },
+                    { value: '3:4', label: '3:4 (纵向)' },
+                    { value: '4:3', label: '4:3 (横向)' },
+                    { value: '4:5', label: '4:5 (纵向)' },
+                    { value: '5:4', label: '5:4 (横向)' },
+                    { value: '9:16', label: '9:16 (手机竖屏)' },
+                    { value: '16:9', label: '16:9 (宽屏)' },
+                    { value: '21:9', label: '21:9 (超宽屏)' },
+                    { value: '1:4', label: '1:4 (长图/海报)' },
+                    { value: '4:1', label: '4:1 (Banner)' },
+                    { value: '1:8', label: '1:8 (极长图)' },
+                    { value: '8:1', label: '8:1 (极宽图)' }
+                ],
+                showModelType: true,
+                showResolution: true,
+                resolutionOptions: [
+                    { value: '', label: '默认 (1k)' },
+                    { value: '1k', label: '1K' },
+                    { value: '2k', label: '2K' },
+                    { value: '4k', label: '4K' }
+                ],
+                promptPlaceholder: '描述你想要生成的图像内容... 例如：让 @img1 的人物站在 @img2 的场景中'
+            },
+            'gpt-image-2': {
+                id: 'gpt-image-2',
+                tabId: 'tab-gpt-image-2',
+                label: 'GPT-image2',
+                requestType: 'runninghub-gpt',
+                endpoint: '/openapi/v2/rhart-image-g-2/text-to-image',
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: [
+                    { value: '', label: '默认 (Auto)' },
+                    { value: '3:2', label: '3:2 (横向)' },
+                    { value: '1:1', label: '1:1 (正方形)' },
+                    { value: '2:3', label: '2:3 (纵向)' },
+                    { value: '5:4', label: '5:4 (横向)' },
+                    { value: '4:5', label: '4:5 (纵向)' },
+                    { value: '16:9', label: '16:9 (宽屏)' },
+                    { value: '9:16', label: '9:16 (手机竖屏)' },
+                    { value: '21:9', label: '21:9 (超宽屏)' },
+                    { value: '3:4', label: '3:4 (纵向)' },
+                    { value: '4:3', label: '4:3 (横向)' }
+                ],
+                showModelType: false,
+                showResolution: false,
+                promptPlaceholder: '描述你想要生成的图像内容...'
+            }
+        };
         
         // 任务队列管理
         let taskQueue = []; // 等待执行的任务
@@ -1634,7 +1715,13 @@
                 loadHistory();
             });
             setupAutoSave();
+            initProvider();
         });
+
+        function initProvider() {
+            const savedProvider = localStorage.getItem('runningHubActiveProvider') || 'nanobanana';
+            setActiveProvider(savedProvider, { preserveCurrent: false });
+        }
 
         function setupAutoSave() {
             const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'historyLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
@@ -1650,12 +1737,14 @@
         }
 
         function autoSaveConfig() {
+            const providerSettings = JSON.parse(localStorage.getItem('runningHubProviderSettings') || '{}');
+            providerSettings[activeProvider] = collectProviderSettings();
+
             const config = {
                 baseUrl: document.getElementById('baseUrl').value,
                 apiKey: document.getElementById('apiKey').value,
-                modelType: document.getElementById('modelType').value,
-                aspectRatio: document.getElementById('aspectRatio').value,
-                resolution: document.getElementById('resolution').value,
+                activeProvider,
+                providerSettings,
                 historyLimit: document.getElementById('historyLimit').value,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
@@ -1665,6 +1754,96 @@
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem('runningHubConfig', JSON.stringify(config));
+            localStorage.setItem('runningHubProviderSettings', JSON.stringify(providerSettings));
+        }
+
+        function getActiveProfile() {
+            return MODEL_PROFILES[activeProvider] || MODEL_PROFILES.nanobanana;
+        }
+
+        function buildSelectOptions(selectEl, options, selectedValue = '') {
+            if (!selectEl) return;
+            selectEl.innerHTML = options.map(option =>
+                `<option value="${option.value}">${option.label}</option>`
+            ).join('');
+            selectEl.value = selectedValue;
+            if (selectEl.value !== selectedValue) {
+                selectEl.value = options[0]?.value || '';
+            }
+        }
+
+        function collectProviderSettings() {
+            const profile = getActiveProfile();
+            const settings = {
+                aspectRatio: document.getElementById('aspectRatio').value
+            };
+            if (profile.showModelType) {
+                settings.modelType = document.getElementById('modelType').value;
+            }
+            if (profile.showResolution) {
+                settings.resolution = document.getElementById('resolution').value;
+            }
+            return settings;
+        }
+
+        function applyProviderSettings(providerId, settings = {}) {
+            const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES.nanobanana;
+
+            document.getElementById('aspectRatioLabel').textContent = profile.aspectRatioLabel;
+            buildSelectOptions(document.getElementById('aspectRatio'), profile.aspectRatioOptions, settings.aspectRatio || '');
+
+            if (profile.showModelType) {
+                document.getElementById('modelTypeGroup').classList.remove('hidden-param');
+                if (settings.modelType) {
+                    document.getElementById('modelType').value = settings.modelType;
+                }
+            } else {
+                document.getElementById('modelTypeGroup').classList.add('hidden-param');
+            }
+
+            if (profile.showResolution) {
+                document.getElementById('resolutionGroup').classList.remove('hidden-param');
+                document.getElementById('resolutionLabel').textContent = '分辨率';
+                buildSelectOptions(document.getElementById('resolution'), profile.resolutionOptions, settings.resolution || '');
+            } else {
+                document.getElementById('resolutionGroup').classList.add('hidden-param');
+            }
+
+            const promptEditor = document.getElementById('prompt');
+            if (promptEditor) {
+                promptEditor.dataset.placeholder = profile.promptPlaceholder;
+            }
+
+            Object.values(MODEL_PROFILES).forEach(item => {
+                const button = document.getElementById(item.tabId);
+                if (!button) return;
+                const isActive = item.id === providerId;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+
+            // 调整参数区网格列数
+            const paramGrid = document.getElementById('paramGrid');
+            if (paramGrid) {
+                const visibleCount = [profile.showModelType, true, profile.showResolution].filter(Boolean).length;
+                paramGrid.style.gridTemplateColumns = `repeat(${visibleCount}, minmax(0, 1fr))`;
+            }
+        }
+
+        function setActiveProvider(providerId, options = {}) {
+            if (!MODEL_PROFILES[providerId]) return;
+
+            const shouldPreserveCurrent = options.preserveCurrent !== false;
+            const providerSettings = options.providerSettings || {};
+
+            if (shouldPreserveCurrent && MODEL_PROFILES[activeProvider]) {
+                providerSettings[activeProvider] = collectProviderSettings();
+            }
+
+            activeProvider = providerId;
+            localStorage.setItem('runningHubActiveProvider', providerId);
+            const nextSettings = providerSettings[providerId] || {};
+            applyProviderSettings(providerId, nextSettings);
         }
 
         // ==================== 主题管理 ====================
@@ -2787,13 +2966,15 @@
         }
 
         // API 配置管理 - 修改为 RunningHub 专用
-        function saveConfig() {
-            const config = {
+        function buildConfigPayload() {
+            const providerSettings = JSON.parse(localStorage.getItem('runningHubProviderSettings') || '{}');
+            providerSettings[activeProvider] = collectProviderSettings();
+
+            return {
                 baseUrl: document.getElementById('baseUrl').value,
                 apiKey: document.getElementById('apiKey').value,
-                modelType: document.getElementById('modelType').value,
-                aspectRatio: document.getElementById('aspectRatio').value,
-                resolution: document.getElementById('resolution').value,
+                activeProvider,
+                providerSettings,
                 historyLimit: document.getElementById('historyLimit').value,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
@@ -2802,53 +2983,66 @@
                 pollInterval: document.getElementById('pollInterval').value,
                 timestamp: new Date().toISOString()
             };
+        }
+
+        function saveConfig() {
+            const config = buildConfigPayload();
             localStorage.setItem('runningHubConfig', JSON.stringify(config));
+            localStorage.setItem('runningHubProviderSettings', JSON.stringify(config.providerSettings));
             showMessage('配置已保存到本地存储', 'success');
         }
 
         function loadSavedConfig() {
             const saved = localStorage.getItem('runningHubConfig');
+            let config = null;
+
             if (saved) {
                 try {
-                    const config = JSON.parse(saved);
-                    document.getElementById('baseUrl').value = config.baseUrl || 'https://www.runninghub.cn';
-                    document.getElementById('apiKey').value = config.apiKey || '';
-                    if (config.modelType !== undefined) {
-                        document.getElementById('modelType').value = config.modelType;
-                    }
-                    if (config.aspectRatio !== undefined) {
-                        document.getElementById('aspectRatio').value = config.aspectRatio;
-                    }
-                    if (config.resolution !== undefined) {
-                        document.getElementById('resolution').value = config.resolution;
-                    }
-                    document.getElementById('historyLimit').value = config.historyLimit || '20';
-                    document.getElementById('enableCompression').checked = config.enableCompression !== false;
-                    document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
-                    document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
-                    document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
-                    document.getElementById('pollInterval').value = config.pollInterval || '8';
+                    config = JSON.parse(saved);
                 } catch (e) {
                     console.error('Failed to load config:', e);
                 }
             }
+
+            document.getElementById('baseUrl').value = config?.baseUrl || 'https://www.runninghub.cn';
+            document.getElementById('apiKey').value = config?.apiKey || '';
+            document.getElementById('historyLimit').value = config?.historyLimit || '20';
+            document.getElementById('enableCompression').checked = config?.enableCompression !== false;
+            document.getElementById('maxEdgeLength').value = config?.maxEdgeLength || '2560';
+            document.getElementById('jpegQuality').value = config?.jpegQuality || '0.9';
+            document.getElementById('maxConcurrency').value = config?.maxConcurrency || '3';
+            document.getElementById('pollInterval').value = config?.pollInterval || '8';
+
+            const providerSettings = {
+                nanobanana: { aspectRatio: '16:9', modelType: 'v2', resolution: '2k' },
+                'gpt-image-2': { aspectRatio: '' }
+            };
+
+            if (config?.providerSettings) {
+                Object.assign(providerSettings.nanobanana, config.providerSettings.nanobanana || {});
+                Object.assign(providerSettings['gpt-image-2'], config.providerSettings['gpt-image-2'] || {});
+            }
+
+            // 向后兼容旧配置
+            if (!config?.providerSettings && config?.aspectRatio !== undefined) {
+                providerSettings.nanobanana.aspectRatio = config.aspectRatio;
+            }
+            if (!config?.providerSettings && config?.resolution !== undefined) {
+                providerSettings.nanobanana.resolution = config.resolution;
+            }
+            if (!config?.providerSettings && config?.modelType !== undefined) {
+                providerSettings.nanobanana.modelType = config.modelType;
+            }
+
+            const savedProvider = config?.activeProvider || 'nanobanana';
+            setActiveProvider(savedProvider, {
+                preserveCurrent: false,
+                providerSettings
+            });
         }
 
         function exportConfig() {
-            const config = {
-                baseUrl: document.getElementById('baseUrl').value,
-                apiKey: document.getElementById('apiKey').value,
-                modelType: document.getElementById('modelType').value,
-                aspectRatio: document.getElementById('aspectRatio').value,
-                resolution: document.getElementById('resolution').value,
-                historyLimit: document.getElementById('historyLimit').value,
-                enableCompression: document.getElementById('enableCompression').checked,
-                maxEdgeLength: document.getElementById('maxEdgeLength').value,
-                jpegQuality: document.getElementById('jpegQuality').value,
-                maxConcurrency: document.getElementById('maxConcurrency').value,
-                pollInterval: document.getElementById('pollInterval').value,
-                timestamp: new Date().toISOString()
-            };
+            const config = buildConfigPayload();
             const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2869,21 +3063,32 @@
                     const config = JSON.parse(e.target.result);
                     document.getElementById('baseUrl').value = config.baseUrl || 'https://www.runninghub.cn';
                     document.getElementById('apiKey').value = config.apiKey || '';
-                    if (config.modelType !== undefined) {
-                        document.getElementById('modelType').value = config.modelType;
-                    }
-                    if (config.aspectRatio !== undefined) {
-                        document.getElementById('aspectRatio').value = config.aspectRatio;
-                    }
-                    if (config.resolution !== undefined) {
-                        document.getElementById('resolution').value = config.resolution;
-                    }
                     document.getElementById('historyLimit').value = config.historyLimit || '20';
                     document.getElementById('enableCompression').checked = config.enableCompression !== false;
                     document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
                     document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
                     document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
                     document.getElementById('pollInterval').value = config.pollInterval || '8';
+
+                    const providerSettings = config.providerSettings || {};
+                    // 向后兼容
+                    if (!config.providerSettings && config.aspectRatio !== undefined) {
+                        providerSettings.nanobanana = providerSettings.nanobanana || {};
+                        providerSettings.nanobanana.aspectRatio = config.aspectRatio;
+                    }
+                    if (!config.providerSettings && config.resolution !== undefined) {
+                        providerSettings.nanobanana = providerSettings.nanobanana || {};
+                        providerSettings.nanobanana.resolution = config.resolution;
+                    }
+                    if (!config.providerSettings && config.modelType !== undefined) {
+                        providerSettings.nanobanana = providerSettings.nanobanana || {};
+                        providerSettings.nanobanana.modelType = config.modelType;
+                    }
+
+                    setActiveProvider(config.activeProvider || 'nanobanana', {
+                        preserveCurrent: false,
+                        providerSettings
+                    });
                     saveConfig();
                     showMessage('配置已导入并保存', 'success');
                 } catch (err) {
@@ -2897,19 +3102,20 @@
         // ==================== 任务队列管理 ====================
         
         // 创建新任务
-        function createTask(baseUrl, apiKey, prompt, aspectRatio, resolution, validImages, modelType) {
+        function createTask(baseUrl, apiKey, providerId, prompt, params, validImages) {
             taskIdCounter++;
             const localTaskId = `local-${Date.now()}-${taskIdCounter}`;
+            const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES.nanobanana;
             
             const task = {
                 id: localTaskId,
                 baseUrl,
                 apiKey,
+                providerId,
+                label: profile.label,
                 prompt,
-                aspectRatio,
-                resolution,
+                params,
                 images: validImages,
-                modelType,
                 status: 'pending', // pending, submitting, polling, completed, failed
                 serverTaskId: null,
                 progress: '0%',
@@ -2958,40 +3164,67 @@
 
         // 执行单个任务 - 适配 RunningHub API
         async function executeTask(task) {
-            const validImages = task.images.filter(f => f !== null);
-            const isImageToImage = validImages.length > 0;
-            const isProModel = task.modelType === 'pro';
+            const profile = MODEL_PROFILES[task.providerId] || MODEL_PROFILES.nanobanana;
             
-            // 根据模型类型和是否有图片选择端点
-            let endpoint;
-            if (isProModel) {
-                endpoint = isImageToImage 
-                    ? '/openapi/v2/rhart-image-n-pro/edit'
-                    : '/openapi/v2/rhart-image-n-pro/text-to-image';
-            } else {
-                endpoint = isImageToImage 
-                    ? '/openapi/v2/rhart-image-n-g31-flash/image-to-image'
-                    : '/openapi/v2/rhart-image-n-g31-flash/text-to-image';
-            }
+            let url;
+            let requestBody;
             
-            const url = `${task.baseUrl}${endpoint}`;
-            
-            // 构建请求体
-            const requestBody = {
-                prompt: task.prompt,
-                aspectRatio: task.aspectRatio || '9:16',
-                resolution: task.resolution || '1k'
-            };
-            
-            // 图生图需要上传图片
-            if (isImageToImage) {
-                // 将图片转换为 base64
-                const imageUrls = [];
-                for (const file of validImages) {
-                    const base64 = await fileToBase64(file);
-                    imageUrls.push(base64);
+            if (profile.requestType === 'runninghub-gpt') {
+                // GPT-image2 模式
+                const validImages = task.images.filter(f => f !== null);
+                const isImageToImage = validImages.length > 0;
+                const endpoint = isImageToImage
+                    ? '/openapi/v2/rhart-image-g-2/image-to-image'
+                    : '/openapi/v2/rhart-image-g-2/text-to-image';
+                url = `${task.baseUrl}${endpoint}`;
+                requestBody = {
+                    prompt: task.prompt
+                };
+                if (task.params?.aspectRatio) {
+                    requestBody.aspectRatio = task.params.aspectRatio;
                 }
-                requestBody.imageUrls = imageUrls;
+                if (isImageToImage) {
+                    const imageUrls = [];
+                    for (const file of validImages) {
+                        const base64 = await fileToBase64(file);
+                        imageUrls.push(base64);
+                    }
+                    requestBody.imageUrls = imageUrls;
+                }
+            } else {
+                // NanoBanana 模式
+                const validImages = task.images.filter(f => f !== null);
+                const isImageToImage = validImages.length > 0;
+                const isProModel = task.params?.modelType === 'pro';
+                
+                let endpoint;
+                if (isProModel) {
+                    endpoint = isImageToImage 
+                        ? '/openapi/v2/rhart-image-n-pro/edit'
+                        : '/openapi/v2/rhart-image-n-pro/text-to-image';
+                } else {
+                    endpoint = isImageToImage 
+                        ? '/openapi/v2/rhart-image-n-g31-flash/image-to-image'
+                        : '/openapi/v2/rhart-image-n-g31-flash/text-to-image';
+                }
+                
+                url = `${task.baseUrl}${endpoint}`;
+                
+                requestBody = {
+                    prompt: task.prompt,
+                    aspectRatio: task.params?.aspectRatio || '9:16',
+                    resolution: task.params?.resolution || '1k'
+                };
+                
+                // 图生图需要上传图片
+                if (isImageToImage) {
+                    const imageUrls = [];
+                    for (const file of validImages) {
+                        const base64 = await fileToBase64(file);
+                        imageUrls.push(base64);
+                    }
+                    requestBody.imageUrls = imageUrls;
+                }
             }
 
             const response = await fetch(url, {
@@ -3224,6 +3457,7 @@
                                 <span class="task-id">${task.id.slice(-8)}</span>
                                 <span class="task-status ${task.status}">${statusText}</span>
                             </div>
+                            <div class="task-progress-text" style="margin-bottom: 6px;">${escapeHtml(task.label || 'NanoBanana')}</div>
                             <div class="task-prompt" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt)}</div>
                             ${task.status === 'polling' || task.status === 'submitting' ? `
                                 <div class="task-progress-bar">
@@ -3268,11 +3502,12 @@
             const debugInfo = {
                 id: task.id,
                 serverTaskId: task.serverTaskId,
+                providerId: task.providerId,
+                label: task.label,
                 status: task.status,
                 progress: task.progress,
                 prompt: task.prompt,
-                aspectRatio: task.aspectRatio,
-                resolution: task.resolution,
+                params: task.params,
                 imageCount: task.images.length,
                 isImageToImage: task.images.length > 0,
                 error: task.error,
@@ -3346,9 +3581,7 @@
             const baseUrl = document.getElementById('baseUrl').value.trim();
             const apiKey = document.getElementById('apiKey').value.trim();
             const prompt = getParsedPromptText();
-            const aspectRatio = document.getElementById('aspectRatio').value;
-            const resolution = document.getElementById('resolution').value;
-            const modelType = document.getElementById('modelType').value;
+            const params = collectProviderSettings();
 
             if (!baseUrl || !apiKey) {
                 showMessage('请填写 API Base URL 和 API Key', 'error');
@@ -3360,11 +3593,11 @@
             }
 
             const validImages = imageFiles.filter(f => f !== null);
-
+            
             hideMessage();
 
             // 创建新任务并加入队列
-            const taskId = createTask(baseUrl, apiKey, prompt, aspectRatio, resolution, validImages, modelType);
+            createTask(baseUrl, apiKey, activeProvider, prompt, params, validImages);
             
             showMessage('任务已添加到队列', 'success');
             
@@ -3391,6 +3624,10 @@
                 area.style.background = 'rgba(239, 68, 68, 0.2)';
                 area.style.color = '#ef4444';
                 area.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            } else if (type === 'warning') {
+                area.style.background = 'rgba(245, 158, 11, 0.2)';
+                area.style.color = '#f59e0b';
+                area.style.border = '1px solid rgba(245, 158, 11, 0.3)';
             } else {
                 area.style.background = 'rgba(34, 197, 94, 0.2)';
                 area.style.color = '#22c55e';
