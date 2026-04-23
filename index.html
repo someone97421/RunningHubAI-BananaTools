@@ -2430,7 +2430,7 @@
                 reader.readAsDataURL(file);
 
                 slot.innerHTML = `
-                    <input type="file" id="file-${i}" accept="image/*" onchange="handleFileSelect(event, ${i})">
+                    <input type="file" id="file-${i}" accept="image/*" multiple onchange="handleFileSelect(event, ${i})">
                     <div class="absolute inset-0 flex flex-col items-center justify-center hidden" id="placeholder-${i}" style="color: var(--text-muted);">
                         <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         <span class="text-xs">点击或拖拽</span>
@@ -2460,6 +2460,7 @@
                 fileInput.type = 'file';
                 fileInput.id = 'file-add-new';
                 fileInput.accept = 'image/*';
+                fileInput.multiple = true;
                 fileInput.style.display = 'none';
                 fileInput.onchange = (e) => handleAddNewImage(e);
 
@@ -2476,59 +2477,72 @@
         }
 
         async function handleAddNewImage(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) return;
 
             const validCount = imageFiles.filter(f => f !== null).length;
-            if (validCount >= 10) {
+            const remaining = 10 - validCount;
+            if (remaining <= 0) {
                 showMessage('RunningHub API 最多只能上传10张参考图', 'error');
+                event.target.value = '';
                 return;
             }
 
-            let targetIndex = imageFiles.findIndex(f => f === null);
-            if (targetIndex === -1) {
-                targetIndex = imageFiles.length;
-                imageFiles.push(null);
+            const filesToAdd = files.slice(0, remaining);
+            if (files.length > remaining) {
+                showMessage(`仅添加了前${remaining}张图片，已达上限`, 'warning');
             }
 
-            try {
-                const compressedFile = await compressImage(file);
-                imageFiles[targetIndex] = compressedFile;
-                renderImageGrid();
-            } catch (error) {
-                console.error('Image compression failed:', error);
-                imageFiles[targetIndex] = file;
-                renderImageGrid();
+            for (const file of filesToAdd) {
+                let targetIndex = imageFiles.findIndex(f => f === null);
+                if (targetIndex === -1) {
+                    targetIndex = imageFiles.length;
+                    imageFiles.push(null);
+                }
+                try {
+                    imageFiles[targetIndex] = await compressImage(file);
+                } catch (error) {
+                    console.error('Image compression failed:', error);
+                    imageFiles[targetIndex] = file;
+                }
             }
+            renderImageGrid();
+            event.target.value = '';
         }
 
         async function handleDropOnAddButton(e) {
             e.preventDefault();
             e.stopPropagation();
 
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type.startsWith('image/')) {
-                const validCount = imageFiles.filter(f => f !== null).length;
-                if (validCount >= 10) {
-                    showMessage('RunningHub API 最多只能上传10张参考图', 'error');
-                    return;
-                }
-                let newIndex = imageFiles.findIndex(f => f === null);
-                if (newIndex === -1) {
-                    newIndex = imageFiles.length;
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) return;
+
+            const validCount = imageFiles.filter(f => f !== null).length;
+            const remaining = 10 - validCount;
+            if (remaining <= 0) {
+                showMessage('RunningHub API 最多只能上传10张参考图', 'error');
+                return;
+            }
+
+            const filesToAdd = files.slice(0, remaining);
+            if (files.length > remaining) {
+                showMessage(`仅添加了前${remaining}张图片，已达上限`, 'warning');
+            }
+
+            for (const file of filesToAdd) {
+                let targetIndex = imageFiles.findIndex(f => f === null);
+                if (targetIndex === -1) {
+                    targetIndex = imageFiles.length;
                     imageFiles.push(null);
                 }
-
                 try {
-                    const compressedFile = await compressImage(files[0]);
-                    imageFiles[newIndex] = compressedFile;
-                    renderImageGrid();
+                    imageFiles[targetIndex] = await compressImage(file);
                 } catch (error) {
                     console.error('Image compression failed:', error);
-                    imageFiles[newIndex] = files[0];
-                    renderImageGrid();
+                    imageFiles[targetIndex] = file;
                 }
             }
+            renderImageGrid();
         }
 
         // 弹出式 Mention 面板
@@ -2896,16 +2910,46 @@
         }
 
         async function handleFileSelect(event, index) {
-            const file = event.target.files[0];
-            if (file) {
+            const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) return;
+
+            if (files.length === 1) {
                 try {
-                    const compressedFile = await compressImage(file);
-                    handleImageFile(compressedFile, index);
+                    imageFiles[index] = await compressImage(files[0]);
                 } catch (error) {
                     console.error('Image compression failed:', error);
-                    handleImageFile(file, index);
+                    imageFiles[index] = files[0];
+                }
+            } else {
+                const validCount = imageFiles.filter(f => f !== null).length;
+                const remaining = 10 - validCount + (imageFiles[index] ? 1 : 0);
+                const filesToAdd = files.slice(0, remaining);
+                if (files.length > remaining) {
+                    showMessage(`仅添加了前${remaining}张图片，已达上限`, 'warning');
+                }
+                try {
+                    imageFiles[index] = await compressImage(filesToAdd[0]);
+                } catch (error) {
+                    console.error('Image compression failed:', error);
+                    imageFiles[index] = filesToAdd[0];
+                }
+                for (let i = 1; i < filesToAdd.length; i++) {
+                    let targetIndex = imageFiles.findIndex(f => f === null);
+                    if (targetIndex === -1) {
+                        targetIndex = imageFiles.length;
+                        imageFiles.push(null);
+                    }
+                    try {
+                        imageFiles[targetIndex] = await compressImage(filesToAdd[i]);
+                    } catch (error) {
+                        console.error('Image compression failed:', error);
+                        imageFiles[targetIndex] = filesToAdd[i];
+                    }
                 }
             }
+            renderImageGrid();
+            autoSaveConfig();
+            event.target.value = '';
         }
 
         function handleDragOver(e, index) {
@@ -2925,16 +2969,50 @@
             e.stopPropagation();
             document.getElementById(`slot-${index}`).classList.remove('dragover');
 
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type.startsWith('image/')) {
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) return;
+
+            const validCount = imageFiles.filter(f => f !== null).length;
+            const remaining = 10 - validCount + (imageFiles[index] ? 1 : 0);
+
+            if (files.length === 1) {
                 try {
-                    const compressedFile = await compressImage(files[0]);
-                    handleImageFile(compressedFile, index);
+                    imageFiles[index] = await compressImage(files[0]);
                 } catch (error) {
                     console.error('Image compression failed:', error);
-                    handleImageFile(files[0], index);
+                    imageFiles[index] = files[0];
+                }
+            } else {
+                if (remaining <= 0) {
+                    showMessage('RunningHub API 最多只能上传10张参考图', 'error');
+                    return;
+                }
+                const filesToAdd = files.slice(0, remaining);
+                if (files.length > remaining) {
+                    showMessage(`仅添加了前${remaining}张图片，已达上限`, 'warning');
+                }
+                try {
+                    imageFiles[index] = await compressImage(filesToAdd[0]);
+                } catch (error) {
+                    console.error('Image compression failed:', error);
+                    imageFiles[index] = filesToAdd[0];
+                }
+                for (let i = 1; i < filesToAdd.length; i++) {
+                    let targetIndex = imageFiles.findIndex(f => f === null);
+                    if (targetIndex === -1) {
+                        targetIndex = imageFiles.length;
+                        imageFiles.push(null);
+                    }
+                    try {
+                        imageFiles[targetIndex] = await compressImage(filesToAdd[i]);
+                    } catch (error) {
+                        console.error('Image compression failed:', error);
+                        imageFiles[targetIndex] = filesToAdd[i];
+                    }
                 }
             }
+            renderImageGrid();
+            autoSaveConfig();
         }
 
         function handleImageFile(file, index) {
