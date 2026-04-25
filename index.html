@@ -219,9 +219,10 @@
 
         /* 富文本编辑器样式 */
         .prompt-editor {
+            height: 180px;
             min-height: 120px;
-            max-height: 200px;
             overflow-y: auto;
+            resize: vertical;
             white-space: pre-wrap;
             word-break: break-word;
             background: var(--bg-input);
@@ -363,6 +364,142 @@
 
         .textarea-wrapper {
             position: relative;
+        }
+
+        :root {
+            --global-task-sidebar-width: 360px;
+            --global-task-sidebar-gap: 16px;
+        }
+
+        .app-main {
+            margin-right: 0;
+        }
+
+        .task-sidebar {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            bottom: 16px;
+            width: var(--global-task-sidebar-width);
+            min-width: 280px;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
+        }
+
+        .task-sidebar.collapsed {
+            display: none;
+        }
+
+        .task-sidebar-resizer {
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: -8px;
+            width: 12px;
+            cursor: col-resize;
+            z-index: 20;
+        }
+
+        .task-sidebar-resizer::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 5px;
+            width: 2px;
+            height: 48px;
+            transform: translateY(-50%);
+            border-radius: 9999px;
+            background: var(--border-color);
+            transition: background 0.2s ease;
+        }
+
+        .task-sidebar-resizer:hover::after,
+        body.resizing-task-sidebar .task-sidebar-resizer::after {
+            background: var(--accent-blue);
+        }
+
+        .task-sidebar-toggle {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .task-sidebar-toggle:hover {
+            color: var(--text-primary);
+            border-color: var(--accent-blue);
+        }
+
+        .task-float-btn {
+            position: fixed;
+            right: 20px;
+            bottom: 24px;
+            width: 54px;
+            height: 54px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            box-shadow: 0 14px 30px -12px rgba(59, 130, 246, 0.8);
+            z-index: 45;
+            transition: transform 0.2s ease, filter 0.2s ease;
+        }
+
+        .task-float-btn:hover {
+            filter: brightness(1.08);
+            transform: translateY(-2px);
+        }
+
+        body.task-sidebar-collapsed .task-float-btn {
+            display: inline-flex;
+        }
+
+        .task-float-count {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            background: #ef4444;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        @media (max-width: 1023px) {
+            .task-sidebar {
+                top: auto;
+                left: 16px;
+                right: 16px;
+                bottom: 16px;
+                width: auto;
+                min-width: 0;
+                max-height: 55vh;
+            }
+
+            .task-sidebar.collapsed {
+                display: none;
+            }
+
+            .task-sidebar-resizer {
+                display: none;
+            }
         }
 
         .mention-btn {
@@ -573,11 +710,17 @@
 
         /* 任务列表样式 */
         .task-list-container {
-            max-height: 300px;
+            max-height: 520px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 8px;
+        }
+
+        .task-sidebar .task-list-container {
+            flex: 1;
+            max-height: none;
+            min-height: 0;
         }
 
         .task-item {
@@ -1017,7 +1160,7 @@
     </style>
 </head>
 
-<body class="min-h-screen p-4 md:p-6 custom-scrollbar">
+<body class="min-h-screen p-4 md:p-6 custom-scrollbar task-sidebar-collapsed">
 
     <!-- 图片预览模态框 -->
     <div id="imageModal" class="image-modal" onclick="closeImageModal()">
@@ -1029,7 +1172,7 @@
         <img id="modalImage" src="" alt="Preview" onclick="event.stopPropagation()">
     </div>
 
-    <div class="max-w-7xl mx-auto space-y-4">
+    <div class="max-w-7xl mx-auto space-y-4 app-main" id="appMain">
         <!-- 标题 -->
         <div class="text-center space-y-2 mb-6">
             <h1
@@ -1226,7 +1369,7 @@
                             <!-- 并发队列设置 -->
                             <div>
                                 <h4 class="text-sm font-medium mb-3" style="color: var(--text-muted);">并发队列设置</h4>
-                                <div class="grid grid-cols-2 gap-4">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label class="text-xs mb-1 block" style="color: var(--text-muted);">最大并发数</label>
                                         <input type="number" id="maxConcurrency" value="3" min="1" max="10"
@@ -1237,8 +1380,13 @@
                                         <input type="number" id="pollInterval" value="8" min="2" max="30"
                                             step="1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
+                                    <div>
+                                        <label class="text-xs mb-1 block" style="color: var(--text-muted);">任务列表最大保存数量</label>
+                                        <input type="number" id="taskHistoryLimit" value="50" min="10" max="500"
+                                            step="1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
+                                    </div>
                                 </div>
-                                <p class="text-xs mt-2" style="color: var(--text-muted);">设置同时处理的最大任务数和轮询间隔</p>
+                                <p class="text-xs mt-2" style="color: var(--text-muted);">设置同时处理的最大任务数、轮询间隔和任务列表保存数量</p>
                             </div>
                         </div>
                     </div>
@@ -1247,9 +1395,9 @@
         </div>
 
         <!-- 第二排：参考图输入区 + 提示词输入区 -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <!-- 左侧：参考图输入区 -->
-            <div class="glass-panel rounded-2xl p-5">
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-1">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
                         <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
@@ -1274,7 +1422,7 @@
             </div>
 
             <!-- 右侧：提示词输入区 -->
-            <div class="glass-panel rounded-2xl p-5">
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-2">
                 <div class="flex flex-col gap-4 mb-4">
                     <div class="flex items-center justify-between gap-3 flex-wrap">
                         <h2 class="text-lg font-semibold flex items-center gap-2">
@@ -1387,59 +1535,29 @@
                 style="background: var(--bg-input); color: var(--text-muted);"></div>
         </div>
 
-        <!-- 第四排：任务列表 + 历史记录区 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <!-- 左侧：任务列表 -->
-            <div class="glass-panel rounded-2xl p-5 lg:col-span-1">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        任务列表
-                    </h2>
-                    <div class="flex items-center gap-2">
-                        <span id="taskCount" class="text-xs px-2 py-1 rounded"
-                            style="background: var(--bg-input); color: var(--text-muted);">0</span>
-                        <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
-                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
-                            清理
-                        </button>
-                    </div>
-                </div>
-                <div id="taskContainer" class="task-list-container custom-scrollbar">
-                    <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
-                        暂无任务
-                    </div>
+        <!-- 第四排：历史记录 -->
+        <div class="glass-panel rounded-2xl p-5">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    生成历史
+                </h2>
+                <div class="flex items-center gap-2">
+                    <span id="historyCount" class="text-xs px-2 py-1 rounded"
+                        style="background: var(--bg-input); color: var(--text-muted);">0</span>
+                    <button onclick="clearHistory()" class="text-xs transition-colors px-2 py-1 rounded"
+                        style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                        清理
+                    </button>
                 </div>
             </div>
-
-            <!-- 右侧：生成历史 -->
-            <div class="glass-panel rounded-2xl p-5 lg:col-span-2">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" style="color: var(--accent-purple);" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        生成历史
-                    </h2>
-                    <div class="flex items-center gap-2">
-                        <span id="historyCount" class="text-xs px-2 py-1 rounded"
-                            style="background: var(--bg-input); color: var(--text-muted);">0</span>
-                        <button onclick="clearHistory()" class="text-xs transition-colors px-2 py-1 rounded"
-                            style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
-                            清理
-                        </button>
-                    </div>
-                </div>
-                <div id="historyContainer" class="history-container custom-scrollbar">
-                    <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
-                        暂无历史记录
-                    </div>
+            <div id="historyContainer" class="history-container custom-scrollbar">
+                <div class="text-center py-8 text-sm flex-shrink-0 w-full" style="color: var(--text-muted);">
+                    暂无历史记录
                 </div>
             </div>
         </div>
@@ -1609,7 +1727,7 @@
 
         <!-- 历史图片选择弹窗 (用于裁切工具) -->
         <div id="cropHistoryPicker" class="crop-history-picker" onclick="closeCropHistoryPicker(event)">
-            <div class="crop-history-picker-content" onclick="event.stopPropagation()">
+        <div class="crop-history-picker-content" onclick="event.stopPropagation()">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-lg font-semibold" style="color: var(--text-primary);">选择历史图片</h3>
                     <button onclick="closeCropHistoryPicker()" class="text-sm px-3 py-1 rounded-lg"
@@ -1621,6 +1739,47 @@
             </div>
         </div>
     </div>
+
+    <!-- 全局右侧任务列表 -->
+    <aside class="glass-panel rounded-2xl p-5 task-sidebar collapsed" id="taskSidebar">
+        <div class="task-sidebar-resizer" id="taskSidebarResizer" title="拖拽调整宽度"></div>
+        <div class="task-sidebar-header flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold flex items-center gap-2">
+                <svg class="w-5 h-5" style="color: var(--accent-blue);" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                <span class="task-title-text">任务列表</span>
+            </h2>
+            <div class="task-sidebar-extra flex items-center gap-2">
+                <span id="taskCount" class="text-xs px-2 py-1 rounded"
+                    style="background: var(--bg-input); color: var(--text-muted);">0</span>
+                <button onclick="clearAllTasks()" class="text-xs transition-colors px-2 py-1 rounded"
+                    style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    清理
+                </button>
+            </div>
+            <button type="button" class="task-sidebar-toggle" onclick="toggleTaskSidebar()" title="收起/展开任务列表">
+                <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div id="taskContainer" class="task-list-container custom-scrollbar task-sidebar-body">
+            <div class="text-center py-8 text-sm" style="color: var(--text-muted);">
+                暂无任务
+            </div>
+        </div>
+    </aside>
+
+    <button type="button" class="task-float-btn" id="taskFloatBtn" onclick="toggleTaskSidebar()" title="打开任务列表">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+        <span class="task-float-count" id="taskFloatCount">0</span>
+    </button>
 
     <script>
         // Global state
@@ -1709,11 +1868,19 @@
 
         // 任务历史持久化
         const TASK_HISTORY_KEY = 'runningHubTaskHistory';
-        const MAX_TASK_HISTORY = 100;
+        const DEFAULT_TASK_HISTORY_LIMIT = 50;
+
+        function getTaskHistoryLimit() {
+            const input = document.getElementById('taskHistoryLimit');
+            const value = parseInt(input?.value, 10);
+            return Number.isFinite(value) ? Math.min(Math.max(value, 10), 500) : DEFAULT_TASK_HISTORY_LIMIT;
+        }
 
         function saveTaskHistory() {
+            const maxTaskHistory = getTaskHistoryLimit();
             const completedTasks = taskQueue
                 .filter(t => t.status === 'completed' || t.status === 'failed')
+                .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
                 .map(t => ({
                     id: t.id,
                     providerId: t.providerId,
@@ -1726,13 +1893,13 @@
                 }));
             const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]');
             const merged = [...completedTasks, ...saved.filter(s => !completedTasks.find(c => c.id === s.id))];
-            const trimmed = merged.slice(0, MAX_TASK_HISTORY);
+            const trimmed = merged.slice(0, maxTaskHistory);
             localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(trimmed));
         }
 
         function loadTaskHistory() {
             try {
-                const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]');
+                const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]').slice(0, getTaskHistoryLimit());
                 saved.forEach(t => {
                     if (!taskQueue.find(q => q.id === t.id)) {
                         taskQueue.push({ ...t, images: [], pollTimer: null, pollAttempts: 0, serverTaskId: null, params: null, baseUrl: '', apiKey: '' });
@@ -1756,6 +1923,7 @@
             loadSavedConfig();
             setupPasteListener();
             setupMentionSystem();
+            initTaskSidebar();
             await initDB();
             loadTaskHistory();
             updateTaskUI();
@@ -1788,7 +1956,7 @@
         }
 
         function setupAutoSave() {
-            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'historyLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
+            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'historyLimit', 'taskHistoryLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
             inputs.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
@@ -1818,6 +1986,7 @@
                 activeProvider,
                 providerSettings,
                 historyLimit: document.getElementById('historyLimit').value,
+                taskHistoryLimit: document.getElementById('taskHistoryLimit').value,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
                 jpegQuality: document.getElementById('jpegQuality').value,
@@ -1830,6 +1999,72 @@
 
             // 异步保存工作区状态
             saveWorkspaceState().catch(console.error);
+        }
+
+        const TASK_SIDEBAR_WIDTH_KEY = 'runningHubTaskSidebarWidth';
+        const TASK_SIDEBAR_COLLAPSED_KEY = 'runningHubTaskSidebarCollapsed';
+
+        function initTaskSidebar() {
+            const sidebar = document.getElementById('taskSidebar');
+            const resizer = document.getElementById('taskSidebarResizer');
+            if (!sidebar || !resizer) return;
+
+            const savedWidth = parseInt(localStorage.getItem(TASK_SIDEBAR_WIDTH_KEY), 10);
+            if (Number.isFinite(savedWidth)) {
+                setTaskSidebarWidth(savedWidth);
+            }
+
+            const savedCollapsed = localStorage.getItem(TASK_SIDEBAR_COLLAPSED_KEY);
+            if (savedCollapsed === 'false') {
+                sidebar.classList.remove('collapsed');
+                document.body.classList.remove('task-sidebar-collapsed');
+            } else {
+                sidebar.classList.add('collapsed');
+                document.body.classList.add('task-sidebar-collapsed');
+            }
+
+            let startX = 0;
+            let startWidth = 0;
+
+            resizer.addEventListener('pointerdown', (e) => {
+                if (sidebar.classList.contains('collapsed')) return;
+                e.preventDefault();
+                startX = e.clientX;
+                startWidth = sidebar.getBoundingClientRect().width;
+                document.body.classList.add('resizing-task-sidebar');
+                resizer.setPointerCapture(e.pointerId);
+            });
+
+            resizer.addEventListener('pointermove', (e) => {
+                if (!document.body.classList.contains('resizing-task-sidebar')) return;
+                const nextWidth = startWidth + (startX - e.clientX);
+                setTaskSidebarWidth(nextWidth);
+            });
+
+            const stopResize = (e) => {
+                if (!document.body.classList.contains('resizing-task-sidebar')) return;
+                document.body.classList.remove('resizing-task-sidebar');
+                localStorage.setItem(TASK_SIDEBAR_WIDTH_KEY, String(Math.round(sidebar.getBoundingClientRect().width)));
+                if (e.pointerId !== undefined && resizer.hasPointerCapture(e.pointerId)) {
+                    resizer.releasePointerCapture(e.pointerId);
+                }
+            };
+
+            resizer.addEventListener('pointerup', stopResize);
+            resizer.addEventListener('pointercancel', stopResize);
+        }
+
+        function setTaskSidebarWidth(width) {
+            const clampedWidth = Math.min(Math.max(width, 280), 640);
+            document.documentElement.style.setProperty('--global-task-sidebar-width', `${clampedWidth}px`);
+        }
+
+        function toggleTaskSidebar() {
+            const sidebar = document.getElementById('taskSidebar');
+            if (!sidebar) return;
+            sidebar.classList.toggle('collapsed');
+            document.body.classList.toggle('task-sidebar-collapsed', sidebar.classList.contains('collapsed'));
+            localStorage.setItem(TASK_SIDEBAR_COLLAPSED_KEY, String(sidebar.classList.contains('collapsed')));
         }
 
         async function saveWorkspaceState() {
@@ -2675,6 +2910,7 @@
             const btn = document.getElementById('mentionBtn');
             const list = document.getElementById('mentionPopupList');
             const editor = document.getElementById('prompt');
+            const editorScrollTop = editor.scrollTop;
 
             const sel = window.getSelection();
             if (sel.rangeCount > 0) {
@@ -2691,7 +2927,16 @@
             btn.classList.add('active');
             isMentionPopupOpen = true;
 
-            editor.focus();
+            focusWithoutScrolling(editor);
+            editor.scrollTop = editorScrollTop;
+        }
+
+        function focusWithoutScrolling(element) {
+            try {
+                element.focus({ preventScroll: true });
+            } catch (error) {
+                element.focus();
+            }
         }
 
         function positionPopup() {
@@ -2752,6 +2997,7 @@
                         <img src="${previewSrc}" alt="img${i + 1}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect fill=%22%231e293b%22 width=%2240%22 height=%2240%22/><text fill=%22%2360a5fa%22 x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 dy=%22.3em%22 font-size=%2214%22>${i + 1}</text></svg>'">
                         <span>@img${i + 1}</span>
                     `;
+                    item.onmousedown = (event) => event.preventDefault();
                     item.onclick = () => selectImageForInsert(i);
                     item.onmouseenter = () => {
                         keyboardSelectedIndex = visibleCount;
@@ -2793,6 +3039,7 @@
 
         function selectImageForInsert(index) {
             const editor = document.getElementById('prompt');
+            const editorScrollTop = editor.scrollTop;
 
             const chipInner = `@img${index + 1} <svg style="width:12px;height:12px;margin-left:2px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
 
@@ -2800,7 +3047,7 @@
                 editingChip.dataset.index = index;
                 editingChip.innerHTML = chipInner;
             } else {
-                editor.focus();
+                focusWithoutScrolling(editor);
 
                 const sel = window.getSelection();
                 let range = savedRange;
@@ -2849,6 +3096,10 @@
 
             savedRange = null;
             closeMentionPopup();
+            editor.scrollTop = editorScrollTop;
+            requestAnimationFrame(() => {
+                editor.scrollTop = editorScrollTop;
+            });
             autoSaveConfig();
         }
 
@@ -2866,6 +3117,10 @@
 
         function setupMentionSystem() {
             const editor = document.getElementById('prompt');
+            const mentionBtn = document.getElementById('mentionBtn');
+            if (mentionBtn) {
+                mentionBtn.addEventListener('mousedown', (e) => e.preventDefault());
+            }
 
             editor.addEventListener('paste', function (e) {
                 e.preventDefault();
@@ -3250,6 +3505,7 @@
                 activeProvider,
                 providerSettings,
                 historyLimit: document.getElementById('historyLimit').value,
+                taskHistoryLimit: document.getElementById('taskHistoryLimit').value,
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
                 jpegQuality: document.getElementById('jpegQuality').value,
@@ -3282,6 +3538,7 @@
             document.getElementById('baseUrl').value = config?.baseUrl || 'https://www.runninghub.cn';
             document.getElementById('apiKey').value = config?.apiKey || '';
             document.getElementById('historyLimit').value = config?.historyLimit || '20';
+            document.getElementById('taskHistoryLimit').value = config?.taskHistoryLimit || '50';
             document.getElementById('enableCompression').checked = config?.enableCompression === true;
             document.getElementById('maxEdgeLength').value = config?.maxEdgeLength || '2560';
             document.getElementById('jpegQuality').value = config?.jpegQuality || '0.9';
@@ -3337,6 +3594,7 @@
                     document.getElementById('baseUrl').value = config.baseUrl || 'https://www.runninghub.cn';
                     document.getElementById('apiKey').value = config.apiKey || '';
                     document.getElementById('historyLimit').value = config.historyLimit || '20';
+                    document.getElementById('taskHistoryLimit').value = config.taskHistoryLimit || '50';
                     document.getElementById('enableCompression').checked = config.enableCompression === true;
                     document.getElementById('maxEdgeLength').value = config.maxEdgeLength || '2560';
                     document.getElementById('jpegQuality').value = config.jpegQuality || '0.9';
@@ -3687,6 +3945,7 @@
         function updateTaskUI(changedTask) {
             const taskContainer = document.getElementById('taskContainer');
             const taskCountEl = document.getElementById('taskCount');
+            const taskFloatCountEl = document.getElementById('taskFloatCount');
             const btnText = document.getElementById('btnText');
             const loader = document.getElementById('btnLoader');
             
@@ -3709,6 +3968,11 @@
             
             // 更新任务数量
             taskCountEl.textContent = taskQueue.length;
+            if (taskFloatCountEl) {
+                const activeTaskCount = pendingCount + runningCount;
+                taskFloatCountEl.textContent = activeTaskCount;
+                taskFloatCountEl.style.display = activeTaskCount > 0 ? 'inline-flex' : 'none';
+            }
             
             // 渲染任务列表
             if (taskQueue.length === 0) {
