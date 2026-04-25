@@ -70,6 +70,11 @@
             transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
+        .prompt-panel {
+            position: relative;
+            z-index: 50;
+        }
+
         .image-slot {
             transition: all 0.3s ease;
             aspect-ratio: 1;
@@ -272,7 +277,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            z-index: 1000;
+            z-index: 10000;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             opacity: 0;
             visibility: hidden;
@@ -382,7 +387,7 @@
             bottom: 16px;
             width: var(--global-task-sidebar-width);
             min-width: 280px;
-            z-index: 40;
+            z-index: 90;
             display: flex;
             flex-direction: column;
             transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
@@ -451,7 +456,7 @@
             background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
             color: white;
             box-shadow: 0 14px 30px -12px rgba(59, 130, 246, 0.8);
-            z-index: 45;
+            z-index: 95;
             transition: transform 0.2s ease, filter 0.2s ease;
         }
 
@@ -1422,7 +1427,7 @@
             </div>
 
             <!-- 右侧：提示词输入区 -->
-            <div class="glass-panel rounded-2xl p-5 lg:col-span-2">
+            <div class="glass-panel rounded-2xl p-5 lg:col-span-2 prompt-panel">
                 <div class="flex flex-col gap-4 mb-4">
                     <div class="flex items-center justify-between gap-3 flex-wrap">
                         <h2 class="text-lg font-semibold flex items-center gap-2">
@@ -2947,16 +2952,24 @@
             const sel = window.getSelection();
             let cursorX = editorRect.left + 20;
             let cursorY = editorRect.top + 50;
+            let anchorTop = editorRect.top;
 
-            if (sel.rangeCount > 0) {
+            if (editingChip) {
+                const chipRect = editingChip.getBoundingClientRect();
+                cursorX = chipRect.left;
+                cursorY = chipRect.bottom + 6;
+                anchorTop = chipRect.top;
+            } else if (sel.rangeCount > 0) {
                 const range = sel.getRangeAt(0);
                 const rects = range.getClientRects();
                 if (rects.length > 0) {
                     const rect = rects[rects.length - 1];
                     cursorX = rect.left;
                     cursorY = rect.bottom + 5;
+                    anchorTop = rect.top;
                 }
             }
+
 
             const popupWidth = 220;
             const popupHeight = 280;
@@ -2965,8 +2978,10 @@
                 cursorX = window.innerWidth - popupWidth - 20;
             }
             if (cursorY + popupHeight > window.innerHeight) {
-                cursorY = editorRect.top - popupHeight - 5;
+                cursorY = anchorTop - popupHeight - 6;
             }
+            cursorX = Math.max(10, cursorX);
+            cursorY = Math.max(10, cursorY);
 
             popup.style.left = (cursorX - editorRect.left) + 'px';
             popup.style.top = (cursorY - editorRect.top) + 'px';
