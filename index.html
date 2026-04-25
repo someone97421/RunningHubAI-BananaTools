@@ -1636,6 +1636,11 @@
         let currentTheme = 'dark';
         let activeProvider = 'nanobanana';
 
+        const DEFAULT_PROVIDER_SETTINGS = {
+            nanobanana: { aspectRatio: '16:9', modelType: 'v2', resolution: '2k' },
+            'gpt-image-2': { aspectRatio: '3:2' }
+        };
+
         const MODEL_PROFILES = {
             nanobanana: {
                 id: 'nanobanana',
@@ -1663,7 +1668,7 @@
                 showModelType: true,
                 showResolution: true,
                 resolutionOptions: [
-                    { value: '', label: '默认 (1k)' },
+                    { value: '', label: '默认 (2K)' },
                     { value: '1k', label: '1K' },
                     { value: '2k', label: '2K' },
                     { value: '4k', label: '4K' }
@@ -1702,10 +1707,47 @@
         let runningTaskCount = 0; // 当前正在运行的任务数
         let taskIdCounter = 0; // 本地任务ID计数器
 
+        // 任务历史持久化
+        const TASK_HISTORY_KEY = 'runningHubTaskHistory';
+        const MAX_TASK_HISTORY = 100;
+
+        function saveTaskHistory() {
+            const completedTasks = taskQueue
+                .filter(t => t.status === 'completed' || t.status === 'failed')
+                .map(t => ({
+                    id: t.id,
+                    providerId: t.providerId,
+                    label: t.label,
+                    prompt: t.prompt,
+                    status: t.status,
+                    progress: t.progress,
+                    error: t.error,
+                    startTime: t.startTime
+                }));
+            const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]');
+            const merged = [...completedTasks, ...saved.filter(s => !completedTasks.find(c => c.id === s.id))];
+            const trimmed = merged.slice(0, MAX_TASK_HISTORY);
+            localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(trimmed));
+        }
+
+        function loadTaskHistory() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]');
+                saved.forEach(t => {
+                    if (!taskQueue.find(q => q.id === t.id)) {
+                        taskQueue.push({ ...t, images: [], pollTimer: null, pollAttempts: 0, serverTaskId: null, params: null, baseUrl: '', apiKey: '' });
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to load task history:', e);
+            }
+        }
+
         // IndexedDB 相关 - 修改为 RunningHub 专用
         const DB_NAME = 'RunningHubDB';
-        const DB_VERSION = 1;
+        const DB_VERSION = 2;
         const STORE_NAME = 'history';
+        const WORKSPACE_STORE_NAME = 'workspace';
         let db = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1714,17 +1756,35 @@
             loadSavedConfig();
             setupPasteListener();
             setupMentionSystem();
-            initDB().then(() => {
-                loadHistory();
-            });
+            await initDB();
+            loadTaskHistory();
+            updateTaskUI();
+            loadHistory();
             setupAutoSave();
             await initProvider();
         });
 
         async function initProvider() {
             const savedProvider = localStorage.getItem('runningHubActiveProvider') || 'nanobanana';
-            setActiveProvider(savedProvider, { preserveCurrent: false });
+            const providerSettings = loadProviderSettingsFromStorage();
+            setActiveProvider(savedProvider, { preserveCurrent: false, providerSettings });
             await loadWorkspaceState();
+        }
+
+        function getDefaultProviderSettings() {
+            return JSON.parse(JSON.stringify(DEFAULT_PROVIDER_SETTINGS));
+        }
+
+        function loadProviderSettingsFromStorage() {
+            const providerSettings = getDefaultProviderSettings();
+            try {
+                const savedSettings = JSON.parse(localStorage.getItem('runningHubProviderSettings') || '{}');
+                Object.assign(providerSettings.nanobanana, savedSettings.nanobanana || {});
+                Object.assign(providerSettings['gpt-image-2'], savedSettings['gpt-image-2'] || {});
+            } catch (e) {
+                console.error('Failed to load provider settings:', e);
+            }
+            return providerSettings;
         }
 
         function setupAutoSave() {
@@ -1749,7 +1809,7 @@
         }
 
         function autoSaveConfig() {
-            const providerSettings = JSON.parse(localStorage.getItem('runningHubProviderSettings') || '{}');
+            const providerSettings = loadProviderSettingsFromStorage();
             providerSettings[activeProvider] = collectProviderSettings();
 
             const config = {
@@ -1793,29 +1853,37 @@
             }
 
             const workspace = {
+                id: 'current',
                 prompt: promptText,
                 images: imageDataList,
                 timestamp: Date.now()
             };
-            localStorage.setItem('runningHubWorkspace', JSON.stringify(workspace));
+            await saveWorkspaceRecord(workspace);
         }
 
         async function loadWorkspaceState() {
-            const saved = localStorage.getItem('runningHubWorkspace');
-            if (!saved) return;
+            let workspace = await getWorkspaceRecord();
+
+            if (!workspace) {
+                const saved = localStorage.getItem('runningHubWorkspace');
+                if (!saved) return;
+
+                try {
+                    workspace = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to parse legacy workspace:', e);
+                    return;
+                }
+            }
 
             try {
-                const workspace = JSON.parse(saved);
-
                 // 恢复提示词
-                if (workspace.prompt) {
-                    const promptEditor = document.getElementById('prompt');
-                    promptEditor.innerHTML = parsePromptWithMentions(workspace.prompt);
-                }
+                const promptEditor = document.getElementById('prompt');
+                promptEditor.innerHTML = parsePromptWithMentions(workspace.prompt || '');
 
                 // 恢复参考图片
+                imageFiles.length = 0;
                 if (workspace.images && workspace.images.length > 0) {
-                    imageFiles.length = 0;
                     for (const img of workspace.images) {
                         try {
                             const file = await dataURLToFile(img.dataUrl, img.name);
@@ -1824,8 +1892,8 @@
                             console.error(`Failed to restore image at index ${img.index}:`, err);
                         }
                     }
-                    renderImageGrid();
                 }
+                renderImageGrid();
             } catch (e) {
                 console.error('Failed to load workspace:', e);
             }
@@ -1908,7 +1976,7 @@
             if (!MODEL_PROFILES[providerId]) return;
 
             const shouldPreserveCurrent = options.preserveCurrent !== false;
-            const providerSettings = options.providerSettings || {};
+            const providerSettings = options.providerSettings || loadProviderSettingsFromStorage();
 
             if (shouldPreserveCurrent && MODEL_PROFILES[activeProvider]) {
                 providerSettings[activeProvider] = collectProviderSettings();
@@ -1916,6 +1984,7 @@
 
             activeProvider = providerId;
             localStorage.setItem('runningHubActiveProvider', providerId);
+            localStorage.setItem('runningHubProviderSettings', JSON.stringify(providerSettings));
             const nextSettings = providerSettings[providerId] || {};
             applyProviderSettings(providerId, nextSettings);
         }
@@ -1990,7 +2059,52 @@
                         const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
                         store.createIndex('timestamp', 'timestamp', { unique: false });
                     }
+                    if (!database.objectStoreNames.contains(WORKSPACE_STORE_NAME)) {
+                        database.createObjectStore(WORKSPACE_STORE_NAME, { keyPath: 'id' });
+                    }
                 };
+            });
+        }
+
+        function saveWorkspaceRecord(workspace) {
+            return new Promise((resolve, reject) => {
+                if (!db || !db.objectStoreNames.contains(WORKSPACE_STORE_NAME)) {
+                    try {
+                        localStorage.setItem('runningHubWorkspace', JSON.stringify(workspace));
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                    return;
+                }
+
+                const transaction = db.transaction([WORKSPACE_STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(WORKSPACE_STORE_NAME);
+                const request = store.put(workspace);
+                request.onsuccess = () => resolve();
+                request.onerror = () => {
+                    try {
+                        localStorage.setItem('runningHubWorkspace', JSON.stringify(workspace));
+                        resolve();
+                    } catch (error) {
+                        reject(request.error || error);
+                    }
+                };
+            });
+        }
+
+        function getWorkspaceRecord() {
+            return new Promise((resolve) => {
+                if (!db || !db.objectStoreNames.contains(WORKSPACE_STORE_NAME)) {
+                    resolve(null);
+                    return;
+                }
+
+                const transaction = db.transaction([WORKSPACE_STORE_NAME], 'readonly');
+                const store = transaction.objectStore(WORKSPACE_STORE_NAME);
+                const request = store.get('current');
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => resolve(null);
             });
         }
 
@@ -2507,6 +2621,7 @@
                 }
             }
             renderImageGrid();
+            autoSaveConfig();
             event.target.value = '';
         }
 
@@ -2543,6 +2658,7 @@
                 }
             }
             renderImageGrid();
+            autoSaveConfig();
         }
 
         // 弹出式 Mention 面板
@@ -2733,6 +2849,7 @@
 
             savedRange = null;
             closeMentionPopup();
+            autoSaveConfig();
         }
 
         function updateKeyboardSelection() {
@@ -3124,7 +3241,7 @@
 
         // API 配置管理 - 修改为 RunningHub 专用
         function buildConfigPayload() {
-            const providerSettings = JSON.parse(localStorage.getItem('runningHubProviderSettings') || '{}');
+            const providerSettings = loadProviderSettingsFromStorage();
             providerSettings[activeProvider] = collectProviderSettings();
 
             return {
@@ -3146,6 +3263,7 @@
             const config = buildConfigPayload();
             localStorage.setItem('runningHubConfig', JSON.stringify(config));
             localStorage.setItem('runningHubProviderSettings', JSON.stringify(config.providerSettings));
+            saveWorkspaceState().catch(console.error);
             showMessage('配置已保存到本地存储', 'success');
         }
 
@@ -3170,10 +3288,7 @@
             document.getElementById('maxConcurrency').value = config?.maxConcurrency || '3';
             document.getElementById('pollInterval').value = config?.pollInterval || '8';
 
-            const providerSettings = {
-                nanobanana: { aspectRatio: '16:9', modelType: 'v2', resolution: '2k' },
-                'gpt-image-2': { aspectRatio: '' }
-            };
+            const providerSettings = getDefaultProviderSettings();
 
             if (config?.providerSettings) {
                 Object.assign(providerSettings.nanobanana, config.providerSettings.nanobanana || {});
@@ -3196,6 +3311,7 @@
                 preserveCurrent: false,
                 providerSettings
             });
+            localStorage.setItem('runningHubProviderSettings', JSON.stringify(providerSettings));
         }
 
         function exportConfig() {
@@ -3227,18 +3343,19 @@
                     document.getElementById('maxConcurrency').value = config.maxConcurrency || '3';
                     document.getElementById('pollInterval').value = config.pollInterval || '8';
 
-                    const providerSettings = config.providerSettings || {};
+                    const providerSettings = getDefaultProviderSettings();
+                    if (config.providerSettings) {
+                        Object.assign(providerSettings.nanobanana, config.providerSettings.nanobanana || {});
+                        Object.assign(providerSettings['gpt-image-2'], config.providerSettings['gpt-image-2'] || {});
+                    }
                     // 向后兼容
                     if (!config.providerSettings && config.aspectRatio !== undefined) {
-                        providerSettings.nanobanana = providerSettings.nanobanana || {};
                         providerSettings.nanobanana.aspectRatio = config.aspectRatio;
                     }
                     if (!config.providerSettings && config.resolution !== undefined) {
-                        providerSettings.nanobanana = providerSettings.nanobanana || {};
                         providerSettings.nanobanana.resolution = config.resolution;
                     }
                     if (!config.providerSettings && config.modelType !== undefined) {
-                        providerSettings.nanobanana = providerSettings.nanobanana || {};
                         providerSettings.nanobanana.modelType = config.modelType;
                     }
 
@@ -3314,6 +3431,7 @@
                 task.status = 'failed';
                 task.error = error.message;
                 runningTaskCount--;
+                saveTaskHistory();
                 updateTaskUI(task);
                 processTaskQueue(); // 尝试处理下一个任务
             }
@@ -3370,7 +3488,7 @@
                 requestBody = {
                     prompt: task.prompt,
                     aspectRatio: task.params?.aspectRatio || '9:16',
-                    resolution: task.params?.resolution || '1k'
+                    resolution: task.params?.resolution || '2k'
                 };
                 
                 // 图生图需要上传图片
@@ -3462,6 +3580,7 @@
                         // 显示结果并保存到历史记录
                         displayTaskResult(task);
                         await saveTaskResultToHistory(task);
+                        saveTaskHistory();
                         updateTaskUI(task);
                         
                         // 尝试处理下一个任务
@@ -3473,6 +3592,7 @@
                         task.status = 'failed';
                         task.error = data.errorMessage || data.failedReason?.message || '任务生成失败';
                         runningTaskCount--;
+                        saveTaskHistory();
                         updateTaskUI(task);
                         processTaskQueue(); // 尝试处理下一个任务
                         
@@ -3487,6 +3607,7 @@
                         task.status = 'failed';
                         task.error = '任务超时，请稍后在历史记录中查看结果';
                         runningTaskCount--;
+                        saveTaskHistory();
                         updateTaskUI(task);
                         processTaskQueue(); // 尝试处理下一个任务
                     }
@@ -3495,8 +3616,9 @@
                     task.status = 'failed';
                     task.error = error.message;
                     runningTaskCount--;
+                    saveTaskHistory();
                     updateTaskUI(task);
-                    processTaskQueue(); // 尝试处理下一个任务
+                    processTaskQueue();
                     console.error('Poll error:', error);
                 }
             };
@@ -3715,6 +3837,7 @@
             taskQueue = [];
             runningTaskCount = 0;
             selectedTaskId = null;
+            localStorage.removeItem(TASK_HISTORY_KEY);
             
             const debugPanel = document.getElementById('taskDebugPanel');
             if (debugPanel) {
