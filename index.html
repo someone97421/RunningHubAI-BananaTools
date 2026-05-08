@@ -1391,6 +1391,16 @@
                                             step="1" class="w-full px-3 py-2 rounded-lg text-sm form-input">
                                     </div>
                                 </div>
+                                <div class="flex items-center justify-between mt-4">
+                                    <div>
+                                        <label class="text-sm" style="color: var(--text-secondary);">显示官方稳定接口</label>
+                                        <p class="text-xs" style="color: var(--text-muted);">开启后在模型选择中显示官方稳定版选项（价格更高但更稳定）</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="showOfficialAPI" onchange="toggleOfficialAPI()">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
                                 <p class="text-xs mt-2" style="color: var(--text-muted);">设置同时处理的最大任务数、轮询间隔和任务列表保存数量</p>
                             </div>
                         </div>
@@ -1443,6 +1453,12 @@
                                 aria-selected="true" onclick="setActiveProvider('nanobanana')">NanoBanana</button>
                             <button type="button" id="tab-gpt-image-2" class="model-tab" role="tab"
                                 aria-selected="false" onclick="setActiveProvider('gpt-image-2')">GPT-image2</button>
+                            <button type="button" id="tab-nanobanana-v2-official" class="model-tab official-tab" role="tab"
+                                aria-selected="false" onclick="setActiveProvider('nanobanana-v2-official')" style="display:none;">V2 官方稳定</button>
+                            <button type="button" id="tab-nanobanana-pro-official" class="model-tab official-tab" role="tab"
+                                aria-selected="false" onclick="setActiveProvider('nanobanana-pro-official')" style="display:none;">PRO 官方稳定</button>
+                            <button type="button" id="tab-gpt-image-2-official" class="model-tab official-tab" role="tab"
+                                aria-selected="false" onclick="setActiveProvider('gpt-image-2-official')" style="display:none;">G2 官方稳定</button>
                         </div>
                     </div>
                 </div>
@@ -1472,8 +1488,8 @@
                     <div class="space-y-1" id="modelTypeGroup">
                         <label class="text-xs font-medium" style="color: var(--text-muted);">模型选择</label>
                         <select id="modelType" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
-                            <option value="v2" selected>V2模型 (1k/2k 0.16元/张, 4k 0.2元/张)</option>
-                            <option value="pro">Pro模型 (1k/2k 0.4元/张, 4k 0.5元/张)</option>
+                            <option value="v2" selected>V2模型</option>
+                            <option value="pro">Pro模型</option>
                         </select>
                     </div>
                     <div class="space-y-1">
@@ -1484,12 +1500,21 @@
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="resolutionLabel">分辨率</label>
                         <select id="resolution" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select"></select>
                     </div>
+                    <div class="space-y-1" id="qualityGroup" style="display:none;">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);" id="qualityLabel">画质</label>
+                        <select id="quality" class="w-full px-3 py-2 rounded-lg text-sm outline-none form-select">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
                 </div>
 
                 <button onclick="generateImage()" id="generateBtn"
                     class="w-full mt-4 py-3 rounded-xl font-semibold text-base shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
                     style="background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); color: white; box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);">
                     <span id="btnText">生成图像</span>
+                    <span id="btnPrice" class="text-sm opacity-80 ml-1"></span>
                     <div id="btnLoader" class="loader hidden"></div>
                 </button>
 
@@ -1802,7 +1827,67 @@
 
         const DEFAULT_PROVIDER_SETTINGS = {
             nanobanana: { aspectRatio: '16:9', modelType: 'v2', resolution: '2k' },
-            'gpt-image-2': { aspectRatio: '3:2' }
+            'gpt-image-2': { aspectRatio: '16:9', resolution: '1k' },
+            'nanobanana-v2-official': { aspectRatio: '9:16', resolution: '1k' },
+            'nanobanana-pro-official': { aspectRatio: '3:4', resolution: '1k' },
+            'gpt-image-2-official': { aspectRatio: '16:9', resolution: '2k', quality: 'medium' }
+        };
+
+        const NANO_COMMON_ASPECTS = [
+            { value: '1:1', label: '1:1 (正方形)' },
+            { value: '2:3', label: '2:3 (纵向)' },
+            { value: '3:2', label: '3:2 (横向)' },
+            { value: '3:4', label: '3:4 (纵向)' },
+            { value: '4:3', label: '4:3 (横向)' },
+            { value: '4:5', label: '4:5 (纵向)' },
+            { value: '5:4', label: '5:4 (横向)' },
+            { value: '9:16', label: '9:16 (手机竖屏)' },
+            { value: '16:9', label: '16:9 (宽屏)' },
+            { value: '21:9', label: '21:9 (超宽屏)' },
+            { value: '1:4', label: '1:4 (长图/海报)' },
+            { value: '4:1', label: '4:1 (Banner)' },
+            { value: '1:8', label: '1:8 (极长图)' },
+            { value: '8:1', label: '8:1 (极宽图)' }
+        ];
+
+        const NANO_PRO_ASPECTS = [
+            { value: '1:1', label: '1:1 (正方形)' },
+            { value: '2:3', label: '2:3 (纵向)' },
+            { value: '3:2', label: '3:2 (横向)' },
+            { value: '3:4', label: '3:4 (纵向)' },
+            { value: '4:3', label: '4:3 (横向)' },
+            { value: '4:5', label: '4:5 (纵向)' },
+            { value: '5:4', label: '5:4 (横向)' },
+            { value: '9:16', label: '9:16 (手机竖屏)' },
+            { value: '16:9', label: '16:9 (宽屏)' },
+            { value: '21:9', label: '21:9 (超宽屏)' }
+        ];
+
+        const RESOLUTION_OPTIONS = [
+            { value: '1k', label: '1K' },
+            { value: '2k', label: '2K' },
+            { value: '4k', label: '4K' }
+        ];
+
+        const QUALITY_OPTIONS = [
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
+            { value: 'high', label: 'High' }
+        ];
+
+        const PRICE_TABLE = {
+            nanobanana: {
+                v2: { '1k': 0.16, '2k': 0.16, '4k': 0.2 },
+                pro: { '1k': 0.4, '2k': 0.4, '4k': 0.5 }
+            },
+            'gpt-image-2': { flat: 0.1 },
+            'nanobanana-v2-official': { '1k': 0.49, '2k': 0.74, '4k': 0.99 },
+            'nanobanana-pro-official': { '1k': 0.8, '2k': 1, '4k': 1.5 },
+            'gpt-image-2-official': {
+                low: { '1k': 0.29, '2k': 0.33, '4k': 0.38 },
+                medium: { '1k': 0.59, '2k': 0.93, '4k': 1.37 },
+                high: { '1k': 1.58, '2k': 2.95, '4k': 4.74 }
+            }
         };
 
         const MODEL_PROFILES = {
@@ -1811,32 +1896,16 @@
                 tabId: 'tab-nanobanana',
                 label: 'NanoBanana',
                 requestType: 'runninghub',
+                isOfficial: false,
                 aspectRatioLabel: '宽高比',
-                aspectRatioOptions: [
-                    { value: '', label: '默认 (Default)' },
-                    { value: '1:1', label: '1:1 (正方形)' },
-                    { value: '2:3', label: '2:3 (纵向)' },
-                    { value: '3:2', label: '3:2 (横向)' },
-                    { value: '3:4', label: '3:4 (纵向)' },
-                    { value: '4:3', label: '4:3 (横向)' },
-                    { value: '4:5', label: '4:5 (纵向)' },
-                    { value: '5:4', label: '5:4 (横向)' },
-                    { value: '9:16', label: '9:16 (手机竖屏)' },
-                    { value: '16:9', label: '16:9 (宽屏)' },
-                    { value: '21:9', label: '21:9 (超宽屏)' },
-                    { value: '1:4', label: '1:4 (长图/海报)' },
-                    { value: '4:1', label: '4:1 (Banner)' },
-                    { value: '1:8', label: '1:8 (极长图)' },
-                    { value: '8:1', label: '8:1 (极宽图)' }
-                ],
+                get aspectRatioOptions() {
+                    const mt = document.getElementById('modelType')?.value || 'v2';
+                    return mt === 'pro' ? NANO_PRO_ASPECTS : NANO_COMMON_ASPECTS;
+                },
                 showModelType: true,
                 showResolution: true,
-                resolutionOptions: [
-                    { value: '', label: '默认 (2K)' },
-                    { value: '1k', label: '1K' },
-                    { value: '2k', label: '2K' },
-                    { value: '4k', label: '4K' }
-                ],
+                resolutionOptions: RESOLUTION_OPTIONS,
+                showQuality: false,
                 promptPlaceholder: '描述你想要生成的图像内容... 例如：让 @img1 的人物站在 @img2 的场景中'
             },
             'gpt-image-2': {
@@ -1844,23 +1913,74 @@
                 tabId: 'tab-gpt-image-2',
                 label: 'GPT-image2',
                 requestType: 'runninghub-gpt',
-                endpoint: '/openapi/v2/rhart-image-g-2/text-to-image',
+                isOfficial: false,
                 aspectRatioLabel: '宽高比',
                 aspectRatioOptions: [
-                    { value: '', label: '默认 (Auto)' },
-                    { value: '3:2', label: '3:2 (横向)' },
                     { value: '1:1', label: '1:1 (正方形)' },
                     { value: '2:3', label: '2:3 (纵向)' },
-                    { value: '5:4', label: '5:4 (横向)' },
+                    { value: '3:2', label: '3:2 (横向)' },
                     { value: '4:5', label: '4:5 (纵向)' },
+                    { value: '5:4', label: '5:4 (横向)' },
+                    { value: '4:3', label: '4:3 (横向)' },
+                    { value: '3:4', label: '3:4 (纵向)' },
                     { value: '16:9', label: '16:9 (宽屏)' },
                     { value: '9:16', label: '9:16 (手机竖屏)' },
                     { value: '21:9', label: '21:9 (超宽屏)' },
-                    { value: '3:4', label: '3:4 (纵向)' },
-                    { value: '4:3', label: '4:3 (横向)' }
+                    { value: '9:21', label: '9:21 (超长图)' }
+                ],
+                aspectRatioOptions4k: [
+                    { value: '16:9', label: '16:9 (宽屏)' },
+                    { value: '9:16', label: '9:16 (手机竖屏)' },
+                    { value: '21:9', label: '21:9 (超宽屏)' },
+                    { value: '9:21', label: '9:21 (超长图)' }
                 ],
                 showModelType: false,
-                showResolution: false,
+                showResolution: true,
+                resolutionOptions: RESOLUTION_OPTIONS,
+                showQuality: false,
+                promptPlaceholder: '描述你想要生成的图像内容...'
+            },
+            'nanobanana-v2-official': {
+                id: 'nanobanana-v2-official',
+                tabId: 'tab-nanobanana-v2-official',
+                label: 'V2 官方稳定',
+                requestType: 'runninghub-v2-official',
+                isOfficial: true,
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: NANO_COMMON_ASPECTS,
+                showModelType: false,
+                showResolution: true,
+                resolutionOptions: RESOLUTION_OPTIONS,
+                showQuality: false,
+                promptPlaceholder: '描述你想要生成的图像内容...'
+            },
+            'nanobanana-pro-official': {
+                id: 'nanobanana-pro-official',
+                tabId: 'tab-nanobanana-pro-official',
+                label: 'PRO 官方稳定',
+                requestType: 'runninghub-pro-official',
+                isOfficial: true,
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: NANO_PRO_ASPECTS,
+                showModelType: false,
+                showResolution: true,
+                resolutionOptions: RESOLUTION_OPTIONS,
+                showQuality: false,
+                promptPlaceholder: '描述你想要生成的图像内容...'
+            },
+            'gpt-image-2-official': {
+                id: 'gpt-image-2-official',
+                tabId: 'tab-gpt-image-2-official',
+                label: 'G2 官方稳定',
+                requestType: 'runninghub-gpt-official',
+                isOfficial: true,
+                aspectRatioLabel: '宽高比',
+                aspectRatioOptions: NANO_PRO_ASPECTS,
+                showModelType: false,
+                showResolution: true,
+                resolutionOptions: RESOLUTION_OPTIONS,
+                showQuality: true,
+                qualityOptions: QUALITY_OPTIONS,
                 promptPlaceholder: '描述你想要生成的图像内容...'
             }
         };
@@ -1940,7 +2060,13 @@
         async function initProvider() {
             const savedProvider = localStorage.getItem('runningHubActiveProvider') || 'nanobanana';
             const providerSettings = loadProviderSettingsFromStorage();
-            setActiveProvider(savedProvider, { preserveCurrent: false, providerSettings });
+            const showOfficial = document.getElementById('showOfficialAPI').checked;
+            toggleOfficialAPI();
+            if (!showOfficial && MODEL_PROFILES[savedProvider]?.isOfficial) {
+                setActiveProvider('nanobanana', { preserveCurrent: false, providerSettings });
+            } else {
+                setActiveProvider(savedProvider, { preserveCurrent: false, providerSettings });
+            }
             await loadWorkspaceState();
         }
 
@@ -1952,8 +2078,9 @@
             const providerSettings = getDefaultProviderSettings();
             try {
                 const savedSettings = JSON.parse(localStorage.getItem('runningHubProviderSettings') || '{}');
-                Object.assign(providerSettings.nanobanana, savedSettings.nanobanana || {});
-                Object.assign(providerSettings['gpt-image-2'], savedSettings['gpt-image-2'] || {});
+                Object.keys(providerSettings).forEach(key => {
+                    Object.assign(providerSettings[key], savedSettings[key] || {});
+                });
             } catch (e) {
                 console.error('Failed to load provider settings:', e);
             }
@@ -1961,7 +2088,7 @@
         }
 
         function setupAutoSave() {
-            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'historyLimit', 'taskHistoryLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
+            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'quality', 'historyLimit', 'taskHistoryLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval', 'showOfficialAPI'];
             inputs.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
@@ -1972,7 +2099,40 @@
                 }
             });
 
-            // 监听提示词变化
+            const resolutionEl = document.getElementById('resolution');
+            if (resolutionEl) {
+                resolutionEl.addEventListener('change', () => {
+                    const profile = getActiveProfile();
+                    if (profile.aspectRatioOptions4k) {
+                        const currentAspect = document.getElementById('aspectRatio').value;
+                        const is4k = resolutionEl.value === '4k';
+                        const aspectOptions = is4k ? profile.aspectRatioOptions4k : profile.aspectRatioOptions;
+                        const safeValue = aspectOptions.find(o => o.value === currentAspect) ? currentAspect : aspectOptions[0]?.value;
+                        buildSelectOptions(document.getElementById('aspectRatio'), aspectOptions, safeValue);
+                    }
+                    updatePriceDisplay();
+                });
+            }
+
+            const modelTypeEl = document.getElementById('modelType');
+            if (modelTypeEl) {
+                modelTypeEl.addEventListener('change', () => {
+                    const profile = getActiveProfile();
+                    if (typeof profile.aspectRatioOptions === 'function') {
+                        const currentAspect = document.getElementById('aspectRatio').value;
+                        const newOptions = profile.aspectRatioOptions();
+                        const safeValue = newOptions.find(o => o.value === currentAspect) ? currentAspect : newOptions[0]?.value;
+                        buildSelectOptions(document.getElementById('aspectRatio'), newOptions, safeValue);
+                    }
+                    updatePriceDisplay();
+                });
+            }
+
+            ['aspectRatio', 'quality'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', updatePriceDisplay);
+            });
+
             const promptEditor = document.getElementById('prompt');
             if (promptEditor) {
                 promptEditor.addEventListener('input', () => {
@@ -1995,6 +2155,7 @@
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
                 jpegQuality: document.getElementById('jpegQuality').value,
+                showOfficialAPI: document.getElementById('showOfficialAPI').checked,
                 maxConcurrency: document.getElementById('maxConcurrency').value,
                 pollInterval: document.getElementById('pollInterval').value,
                 timestamp: new Date().toISOString()
@@ -2165,6 +2326,9 @@
             if (profile.showResolution) {
                 settings.resolution = document.getElementById('resolution').value;
             }
+            if (profile.showQuality) {
+                settings.quality = document.getElementById('quality').value;
+            }
             return settings;
         }
 
@@ -2172,7 +2336,15 @@
             const profile = MODEL_PROFILES[providerId] || MODEL_PROFILES.nanobanana;
 
             document.getElementById('aspectRatioLabel').textContent = profile.aspectRatioLabel;
-            buildSelectOptions(document.getElementById('aspectRatio'), profile.aspectRatioOptions, settings.aspectRatio || '');
+            let aspectOptions = (typeof profile.aspectRatioOptions === 'function')
+                ? profile.aspectRatioOptions()
+                : profile.aspectRatioOptions;
+            if (profile.aspectRatioOptions4k && settings.resolution === '4k') {
+                aspectOptions = profile.aspectRatioOptions4k;
+            }
+            const currentAspectRatio = settings.aspectRatio || aspectOptions[0]?.value;
+            const safeAspectRatio = aspectOptions.find(o => o.value === currentAspectRatio) ? currentAspectRatio : aspectOptions[0]?.value;
+            buildSelectOptions(document.getElementById('aspectRatio'), aspectOptions, safeAspectRatio);
 
             if (profile.showModelType) {
                 document.getElementById('modelTypeGroup').classList.remove('hidden-param');
@@ -2191,6 +2363,14 @@
                 document.getElementById('resolutionGroup').classList.add('hidden-param');
             }
 
+            const qualityGroup = document.getElementById('qualityGroup');
+            if (profile.showQuality) {
+                qualityGroup.style.display = '';
+                buildSelectOptions(document.getElementById('quality'), profile.qualityOptions, settings.quality || 'medium');
+            } else {
+                qualityGroup.style.display = 'none';
+            }
+
             const promptEditor = document.getElementById('prompt');
             if (promptEditor) {
                 promptEditor.dataset.placeholder = profile.promptPlaceholder;
@@ -2204,12 +2384,13 @@
                 button.setAttribute('aria-selected', isActive ? 'true' : 'false');
             });
 
-            // 调整参数区网格列数
             const paramGrid = document.getElementById('paramGrid');
             if (paramGrid) {
-                const visibleCount = [profile.showModelType, true, profile.showResolution].filter(Boolean).length;
+                const visibleCount = [profile.showModelType, true, profile.showResolution, profile.showQuality].filter(Boolean).length;
                 paramGrid.style.gridTemplateColumns = `repeat(${visibleCount}, minmax(0, 1fr))`;
             }
+
+            updatePriceDisplay();
         }
 
         function setActiveProvider(providerId, options = {}) {
@@ -2227,6 +2408,46 @@
             localStorage.setItem('runningHubProviderSettings', JSON.stringify(providerSettings));
             const nextSettings = providerSettings[providerId] || {};
             applyProviderSettings(providerId, nextSettings);
+        }
+
+        function toggleOfficialAPI() {
+            const show = document.getElementById('showOfficialAPI').checked;
+            document.querySelectorAll('.official-tab').forEach(tab => {
+                tab.style.display = show ? '' : 'none';
+            });
+            if (!show && MODEL_PROFILES[activeProvider]?.isOfficial) {
+                setActiveProvider('nanobanana');
+            }
+            autoSaveConfig();
+        }
+
+        function getCurrentPrice() {
+            const profile = getActiveProfile();
+            const resolution = document.getElementById('resolution')?.value || '1k';
+            const quality = document.getElementById('quality')?.value || 'medium';
+            const modelType = document.getElementById('modelType')?.value || 'v2';
+            const priceData = PRICE_TABLE[activeProvider];
+            if (!priceData) return null;
+            if (activeProvider === 'nanobanana') {
+                return priceData[modelType]?.[resolution] ?? null;
+            }
+            if (activeProvider === 'gpt-image-2') {
+                return priceData.flat ?? null;
+            }
+            if (activeProvider === 'gpt-image-2-official') {
+                return priceData[quality]?.[resolution] ?? null;
+            }
+            return priceData[resolution] ?? null;
+        }
+
+        function updatePriceDisplay() {
+            const price = getCurrentPrice();
+            const priceEl = document.getElementById('btnPrice');
+            if (price !== null && price !== undefined) {
+                priceEl.textContent = `¥${price.toFixed(2)}/次`;
+            } else {
+                priceEl.textContent = '';
+            }
         }
 
         // ==================== 主题管理 ====================
@@ -3524,6 +3745,7 @@
                 enableCompression: document.getElementById('enableCompression').checked,
                 maxEdgeLength: document.getElementById('maxEdgeLength').value,
                 jpegQuality: document.getElementById('jpegQuality').value,
+                showOfficialAPI: document.getElementById('showOfficialAPI').checked,
                 maxConcurrency: document.getElementById('maxConcurrency').value,
                 pollInterval: document.getElementById('pollInterval').value,
                 timestamp: new Date().toISOString()
@@ -3557,14 +3779,16 @@
             document.getElementById('enableCompression').checked = config?.enableCompression === true;
             document.getElementById('maxEdgeLength').value = config?.maxEdgeLength || '2560';
             document.getElementById('jpegQuality').value = config?.jpegQuality || '0.9';
+            document.getElementById('showOfficialAPI').checked = config?.showOfficialAPI === true;
             document.getElementById('maxConcurrency').value = config?.maxConcurrency || '3';
             document.getElementById('pollInterval').value = config?.pollInterval || '8';
 
             const providerSettings = getDefaultProviderSettings();
 
             if (config?.providerSettings) {
-                Object.assign(providerSettings.nanobanana, config.providerSettings.nanobanana || {});
-                Object.assign(providerSettings['gpt-image-2'], config.providerSettings['gpt-image-2'] || {});
+                Object.keys(providerSettings).forEach(key => {
+                    Object.assign(providerSettings[key], config.providerSettings[key] || {});
+                });
             }
 
             // 向后兼容旧配置
@@ -3579,7 +3803,12 @@
             }
 
             const savedProvider = config?.activeProvider || 'nanobanana';
-            setActiveProvider(savedProvider, {
+            const showOfficial = config?.showOfficialAPI === true;
+            document.querySelectorAll('.official-tab').forEach(tab => {
+                tab.style.display = showOfficial ? '' : 'none';
+            });
+            const finalProvider = (!showOfficial && MODEL_PROFILES[savedProvider]?.isOfficial) ? 'nanobanana' : savedProvider;
+            setActiveProvider(finalProvider, {
                 preserveCurrent: false,
                 providerSettings
             });
@@ -3718,25 +3947,60 @@
             let requestBody;
             
             if (profile.requestType === 'runninghub-gpt') {
-                // GPT-image2 模式
                 const validImages = task.images.filter(f => f !== null);
                 const isImageToImage = validImages.length > 0;
                 const endpoint = isImageToImage
                     ? '/openapi/v2/rhart-image-g-2/image-to-image'
                     : '/openapi/v2/rhart-image-g-2/text-to-image';
                 url = `${task.baseUrl}${endpoint}`;
-                requestBody = {
-                    prompt: task.prompt
-                };
-                if (task.params?.aspectRatio) {
-                    requestBody.aspectRatio = task.params.aspectRatio;
-                }
+                requestBody = { prompt: task.prompt };
+                if (task.params?.aspectRatio) requestBody.aspectRatio = task.params.aspectRatio;
+                if (task.params?.resolution) requestBody.resolution = task.params.resolution;
                 if (isImageToImage) {
                     const imageUrls = [];
-                    for (const file of validImages) {
-                        const base64 = await fileToBase64(file);
-                        imageUrls.push(base64);
-                    }
+                    for (const file of validImages) { imageUrls.push(await fileToBase64(file)); }
+                    requestBody.imageUrls = imageUrls;
+                }
+            } else if (profile.requestType === 'runninghub-gpt-official') {
+                const validImages = task.images.filter(f => f !== null);
+                const isImageToImage = validImages.length > 0;
+                const endpoint = isImageToImage
+                    ? '/openapi/v2/rhart-image-g-2-official/image-to-image'
+                    : '/openapi/v2/rhart-image-g-2-official/text-to-image';
+                url = `${task.baseUrl}${endpoint}`;
+                requestBody = { prompt: task.prompt, resolution: task.params?.resolution || '2k', quality: task.params?.quality || 'medium' };
+                if (task.params?.aspectRatio) requestBody.aspectRatio = task.params.aspectRatio;
+                if (isImageToImage) {
+                    const imageUrls = [];
+                    for (const file of validImages) { imageUrls.push(await fileToBase64(file)); }
+                    requestBody.imageUrls = imageUrls;
+                }
+            } else if (profile.requestType === 'runninghub-v2-official') {
+                const validImages = task.images.filter(f => f !== null);
+                const isImageToImage = validImages.length > 0;
+                const endpoint = isImageToImage
+                    ? '/openapi/v2/rhart-image-n-g31-flash-official/image-to-image'
+                    : '/openapi/v2/rhart-image-n-g31-flash-official/text-to-image';
+                url = `${task.baseUrl}${endpoint}`;
+                requestBody = { prompt: task.prompt, resolution: task.params?.resolution || '1k' };
+                if (task.params?.aspectRatio) requestBody.aspectRatio = task.params.aspectRatio;
+                if (isImageToImage) {
+                    const imageUrls = [];
+                    for (const file of validImages) { imageUrls.push(await fileToBase64(file)); }
+                    requestBody.imageUrls = imageUrls;
+                }
+            } else if (profile.requestType === 'runninghub-pro-official') {
+                const validImages = task.images.filter(f => f !== null);
+                const isImageToImage = validImages.length > 0;
+                const endpoint = isImageToImage
+                    ? '/openapi/v2/rhart-image-n-pro-official/edit'
+                    : '/openapi/v2/rhart-image-n-pro-official/text-to-image';
+                url = `${task.baseUrl}${endpoint}`;
+                requestBody = { prompt: task.prompt, resolution: task.params?.resolution || '1k' };
+                if (task.params?.aspectRatio) requestBody.aspectRatio = task.params.aspectRatio;
+                if (isImageToImage) {
+                    const imageUrls = [];
+                    for (const file of validImages) { imageUrls.push(await fileToBase64(file)); }
                     requestBody.imageUrls = imageUrls;
                 }
             } else {
