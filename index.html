@@ -701,7 +701,7 @@
 
         :root {
             --global-task-sidebar-width: 360px;
-            --global-task-sidebar-gap: 16px;
+            --global-task-sidebar-gap: 40px; /* 16px right offset + 24px visual gap */
         }
 
         .task-sidebar {
@@ -4600,6 +4600,56 @@
         // 当前选中的任务ID
         let selectedTaskId = null;
 
+        // 页面通知和标题状态
+        const ORIGINAL_TITLE = 'RunningHub AI - BananaTools';
+        let titleFlashInterval = null;
+        let currentBaseTitle = ORIGINAL_TITLE;
+
+        function triggerSuccessNotification() {
+            // Play notification sound
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const ctx = new AudioContext();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.3);
+                }
+            } catch (e) {
+                console.error('Audio notification failed:', e);
+            }
+
+            // Flash title if not already flashing
+            if (!titleFlashInterval) {
+                let isFlash = false;
+                titleFlashInterval = setInterval(() => {
+                    isFlash = !isFlash;
+                    document.title = isFlash ? '🟢 ' + currentBaseTitle : currentBaseTitle;
+                }, 800);
+
+                const stopFlashing = () => {
+                    if (titleFlashInterval) {
+                        clearInterval(titleFlashInterval);
+                        titleFlashInterval = null;
+                        document.title = currentBaseTitle;
+                    }
+                    window.removeEventListener('focus', stopFlashing);
+                    window.removeEventListener('click', stopFlashing);
+                    window.removeEventListener('keydown', stopFlashing);
+                };
+                window.addEventListener('focus', stopFlashing);
+                window.addEventListener('click', stopFlashing);
+                window.addEventListener('keydown', stopFlashing);
+            }
+        }
+
         // 更新任务UI
         function updateTaskUI(changedTask) {
             const taskContainer = document.getElementById('taskContainer');
@@ -4608,27 +4658,37 @@
             const btnText = document.getElementById('btnText');
             const loader = document.getElementById('btnLoader');
             
+            // 记录之前的调试面板滚动位置
+            let debugScrollTop = 0;
+            const existingDebugContent = document.querySelector('.task-debug-content');
+            if (existingDebugContent) {
+                debugScrollTop = existingDebugContent.scrollTop;
+            }
+
             const pendingCount = taskQueue.filter(t => t.status === 'pending').length;
             const runningCount = taskQueue.filter(t => t.status === 'submitting' || t.status === 'polling').length;
             const completedCount = taskQueue.filter(t => t.status === 'completed').length;
             const failedCount = taskQueue.filter(t => t.status === 'failed').length;
+            const activeTaskCount = pendingCount + runningCount;
             
             // 更新按钮状态
-            if (runningCount > 0) {
-                btnText.textContent = '生成中...';
-                loader.classList.remove('hidden');
-            } else if (pendingCount > 0) {
-                btnText.textContent = '等待中...';
+            if (activeTaskCount > 0) {
+                btnText.textContent = `添加任务队列 (${activeTaskCount})`;
                 loader.classList.remove('hidden');
             } else {
-                btnText.textContent = '生成图像';
+                btnText.textContent = '添加任务队列';
                 loader.classList.add('hidden');
+            }
+
+            // 更新标签页标题
+            currentBaseTitle = activeTaskCount > 0 ? `(${activeTaskCount}) ${ORIGINAL_TITLE}` : ORIGINAL_TITLE;
+            if (!titleFlashInterval) {
+                document.title = currentBaseTitle;
             }
             
             // 更新任务数量
             taskCountEl.textContent = taskQueue.length;
             if (taskFloatCountEl) {
-                const activeTaskCount = pendingCount + runningCount;
                 taskFloatCountEl.textContent = activeTaskCount;
                 taskFloatCountEl.style.display = activeTaskCount > 0 ? 'inline-flex' : 'none';
             }
@@ -4652,6 +4712,36 @@
                         'failed': '失败'
                     }[task.status] || task.status;
                     
+                    let debugPanelHtml = '';
+                    if (isSelected) {
+                        const debugInfo = {
+                            id: task.id,
+                            serverTaskId: task.serverTaskId,
+                            providerId: task.providerId,
+                            label: task.label,
+                            status: task.status,
+                            progress: task.progress,
+                            prompt: task.prompt,
+                            params: task.params,
+                            imageCount: task.images.length,
+                            isImageToImage: task.images.length > 0,
+                            error: task.error,
+                            pollAttempts: task.pollAttempts,
+                            startTime: new Date(task.startTime).toLocaleString(),
+                            result: task.result ? '已返回数据' : null
+                        };
+                        
+                        debugPanelHtml = `
+                            <div class="task-debug-panel" onclick="event.stopPropagation()">
+                                <div class="task-debug-header">
+                                    <span>任务调试信息</span>
+                                    <button onclick="closeTaskDebugPanel(event)" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
+                                </div>
+                                <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
+                            </div>
+                        `;
+                    }
+                    
                     return `
                         <div class="task-item ${task.status} ${isSelected ? 'selected' : ''}" 
                              onclick="selectTask('${task.id}')">
@@ -4670,20 +4760,25 @@
                             ${task.status === 'failed' ? `
                                 <div class="task-progress-text" style="color: #ef4444;">${escapeHtml(task.error || '未知错误')}</div>
                             ` : ''}
+                            ${debugPanelHtml}
                         </div>
                     `;
                 }).join('');
             }
             
-            // 如果有选中的任务，显示调试信息
-            if (selectedTaskId) {
-                renderTaskDebugPanel();
+            // 恢复调试面板滚动位置
+            const newDebugContent = document.querySelector('.task-debug-content');
+            if (newDebugContent && debugScrollTop > 0) {
+                newDebugContent.scrollTop = debugScrollTop;
             }
             
             // 如果有状态变化，显示消息
             if (changedTask) {
                 if (changedTask.status === 'completed') {
                     showMessage(`任务 ${changedTask.id.slice(-4)} 完成`, 'success');
+                    if (document.hidden) {
+                        triggerSuccessNotification();
+                    }
                 } else if (changedTask.status === 'failed') {
                     showMessage(`任务 ${changedTask.id.slice(-4)} 失败: ${changedTask.error}`, 'error');
                 }
@@ -4692,57 +4787,20 @@
 
         // 选择任务
         function selectTask(taskId) {
-            selectedTaskId = taskId;
+            if (selectedTaskId === taskId) {
+                selectedTaskId = null; // 再次点击已展开的卡片则收起
+            } else {
+                selectedTaskId = taskId; // 展开新的，自动收起其他的
+            }
             updateTaskUI();
         }
 
-        // 渲染任务调试面板
-        function renderTaskDebugPanel() {
-            const task = taskQueue.find(t => t.id === selectedTaskId);
-            if (!task) return;
-            
-            const debugInfo = {
-                id: task.id,
-                serverTaskId: task.serverTaskId,
-                providerId: task.providerId,
-                label: task.label,
-                status: task.status,
-                progress: task.progress,
-                prompt: task.prompt,
-                params: task.params,
-                imageCount: task.images.length,
-                isImageToImage: task.images.length > 0,
-                error: task.error,
-                pollAttempts: task.pollAttempts,
-                startTime: new Date(task.startTime).toLocaleString(),
-                result: task.result ? '已返回数据' : null
-            };
-            
-            // 检查是否已存在调试面板
-            let debugPanel = document.getElementById('taskDebugPanel');
-            if (!debugPanel) {
-                debugPanel = document.createElement('div');
-                debugPanel.id = 'taskDebugPanel';
-                debugPanel.className = 'task-debug-panel';
-                document.getElementById('taskContainer').parentNode.appendChild(debugPanel);
-            }
-            
-            debugPanel.innerHTML = `
-                <div class="task-debug-header">
-                    <span>任务调试信息</span>
-                    <button onclick="closeTaskDebugPanel()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
-                </div>
-                <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
-            `;
-        }
-
         // 关闭任务调试面板
-        function closeTaskDebugPanel() {
-            selectedTaskId = null;
-            const debugPanel = document.getElementById('taskDebugPanel');
-            if (debugPanel) {
-                debugPanel.remove();
+        function closeTaskDebugPanel(event) {
+            if (event) {
+                event.stopPropagation();
             }
+            selectedTaskId = null;
             updateTaskUI();
         }
 
