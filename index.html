@@ -4553,19 +4553,80 @@
             task.pollTimer = setInterval(poll, pollInterval);
         }
 
+        function imageUrlFromCandidate(candidate) {
+            if (!candidate) return null;
+            if (typeof candidate === 'string') {
+                const value = candidate.trim();
+                return value ? value : null;
+            }
+            const outputType = String(candidate.outputType || candidate.type || '').toLowerCase();
+            if (outputType && !/image|png|jpg|jpeg|webp|url|base64/.test(outputType)) return null;
+
+            const inlineData = candidate.inlineData || candidate.inline_data;
+            if (inlineData?.data) {
+                const mime = inlineData.mimeType || inlineData.mime_type || 'image/png';
+                return `data:${mime};base64,${inlineData.data}`;
+            }
+
+            const url = candidate.url || candidate.image_url || candidate.imageUrl || candidate.result_url || candidate.output_url;
+            if (typeof url === 'string' && url.trim()) return url.trim();
+            if (Array.isArray(candidate.image_url)) {
+                const last = candidate.image_url.filter(item => typeof item === 'string' && item.trim()).at(-1);
+                if (last) return last.trim();
+            }
+            if (candidate.b64_json) return `data:image/png;base64,${candidate.b64_json}`;
+            return null;
+        }
+
+        function isDraftImageCandidate(candidate) {
+            if (!candidate || typeof candidate !== 'object') return false;
+            if (candidate.thought || candidate.draft || candidate.isDraft || candidate.is_draft) return true;
+            const marker = `${candidate.outputType || ''} ${candidate.type || ''} ${candidate.name || ''} ${candidate.label || ''}`.toLowerCase();
+            return /thought|draft|preview|progress|intermediate|temp|blur/.test(marker);
+        }
+
+        function selectFinalImageResult(candidates) {
+            const images = candidates
+                .map(candidate => ({ url: imageUrlFromCandidate(candidate), draft: isDraftImageCandidate(candidate) }))
+                .filter(item => item.url);
+            return images.filter(item => !item.draft).at(-1)?.url || images.at(-1)?.url || null;
+        }
+
+        function extractImageSource(result) {
+            const candidates = [];
+            const addItem = item => {
+                if (item !== undefined && item !== null) candidates.push(item);
+            };
+            const addArray = items => {
+                if (Array.isArray(items)) items.forEach(addItem);
+            };
+
+            addArray(result?.results);
+            addArray(result?.data?.results);
+            addArray(result?.data);
+            addArray(result?.data?.data);
+            addArray(result?.response?.data);
+            addArray(result?.response?.data?.data);
+            addItem(result);
+            addItem(result?.data);
+            addItem(result?.response);
+
+            return selectFinalImageResult(candidates);
+        }
+
         // 显示任务结果
         function displayTaskResult(task) {
             const resultArea = document.getElementById('resultArea');
             const resultImage = document.getElementById('resultImage');
             const downloadLink = document.getElementById('downloadLink');
             const jsonResult = document.getElementById('jsonResult');
+            const imageSrc = extractImageSource(task.result);
 
             resultArea.classList.remove('hidden');
 
-            // RunningHub API 返回的结果结构
-            if (task.result && task.result.results && task.result.results.length > 0 && task.result.results[0].url) {
-                resultImage.src = task.result.results[0].url;
-                downloadLink.href = task.result.results[0].url;
+            if (imageSrc) {
+                resultImage.src = imageSrc;
+                downloadLink.href = imageSrc;
                 downloadLink.download = `generated-${Date.now()}.png`;
                 if (jsonResult) jsonResult.classList.add('hidden');
             } else {
@@ -4583,16 +4644,16 @@
         async function saveTaskResultToHistory(task) {
             try {
                 let imageData = null;
+                const imageSrc = extractImageSource(task.result);
 
-                // RunningHub API 返回的结果结构
-                if (task.result && task.result.results && task.result.results.length > 0 && task.result.results[0].url) {
+                if (imageSrc) {
                     try {
-                        const response = await fetch(task.result.results[0].url);
+                        const response = await fetch(imageSrc);
                         const blob = await response.blob();
                         imageData = await blobToBase64(blob);
                     } catch (e) {
                         console.error('Failed to fetch image from URL:', e);
-                        imageData = task.result.results[0].url;
+                        imageData = imageSrc;
                     }
                 }
 
