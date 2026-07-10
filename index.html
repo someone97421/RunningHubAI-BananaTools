@@ -5517,11 +5517,7 @@
                 }
             }
 
-            if (activeProvider === 'seedream') {
-                payload.imageUrls = urls;
-            } else {
-                urls.forEach(url => payload.append('imageUrl', url));
-            }
+            payload.imageUrls = urls;
 
             task.submitSummary.totalReferenceCount = task.submitSummary.urlCount;
             recordTaskEvent(task, 'upload.ready', '参考文件准备完成', task.submitSummary);
@@ -5532,43 +5528,54 @@
             const profile = MODEL_PROFILES[resolveProviderId(task.providerId)] || MODEL_PROFILES['nano-banana2'];
             const validImages = task.images.filter(f => f !== null);
             const isSeedream = activeProvider === 'seedream';
-            const seedreamModelType = task.params?.modelType || 'seedream4-6';
+            const modelType = task.params?.modelType || 'low-cost';
 
-            let endpoint = '/api/tasks';
+            let endpoint = '';
+            const action = validImages.length > 0 ? 'image-to-image' : 'text-to-image';
+            const isEdit = validImages.length > 0 ? 'edit' : 'text-to-image';
+
             if (isSeedream) {
-                const action = validImages.length > 0 ? 'image-to-image' : 'text-to-image';
-
-                if (seedreamModelType === 'seedream4-6') {
+                if (modelType === 'seedream4-6') {
                     endpoint = `/openapi/v2/bytedance/jimeng-4.6/${action}`;
-                } else if (seedreamModelType === 'seedream5-lite') {
+                } else if (modelType === 'seedream5-lite') {
                     endpoint = `/openapi/v2/seedream/seedream-v5-lite/${action}`;
-                } else if (seedreamModelType === 'seedream5-pro') {
+                } else if (modelType === 'seedream5-pro') {
                     endpoint = `/openapi/v2/seedream/seedream-v5-pro/${action}`;
-                } else if (seedreamModelType === 'seedream4-0') {
+                } else if (modelType === 'seedream4-0') {
                     endpoint = `/openapi/v2/seedream/seedream-v4/${action}`;
-                } else if (seedreamModelType === 'seedream4-5') {
+                } else if (modelType === 'seedream4-5') {
                     endpoint = `/openapi/v2/seedream/seedream-v4.5/${action}`;
                 }
+            } else if (activeProvider === 'nano-banana2') {
+                if (modelType === 'low-cost') endpoint = `/openapi/v2/rhart-image-n-g31-flash/${action}`;
+                else endpoint = `/openapi/v2/rhart-image-n-g31-flash-official/${action}`;
+            } else if (activeProvider === 'nano-banana-pro') {
+                if (modelType === 'low-cost') endpoint = `/openapi/v2/rhart-image-n-pro/${isEdit}`;
+                else if (modelType === 'official') endpoint = `/openapi/v2/rhart-image-n-pro-official/${isEdit}`;
+                else if (modelType === 'ultra') endpoint = `/openapi/v2/rhart-image-n-pro-official/${isEdit}-ultra`;
+            } else if (activeProvider === 'gpt-image-2') {
+                if (modelType === 'low-cost') endpoint = `/openapi/v2/rhart-image-g-2/${action}`;
+                else endpoint = `/openapi/v2/rhart-image-g-2-official/${action}`;
             }
 
             const url = buildApiUrl(task.baseUrl, endpoint);
 
-            const payload = isSeedream ? {
-                prompt: task.prompt,
-                scale: 50,
-                forceSingle: false,
-                minRatio: 0.333333,
-                maxRatio: 3
-            } : new FormData();
+            const payload = {
+                prompt: task.prompt
+            };
 
             recordTaskEvent(task, 'task.submit.start', `开始组装 RunningHub 请求`);
 
-            if (isSeedream) {
-                if (validImages.length > 0) {
-                    await prepareReferenceInputs(task, validImages, payload);
-                }
+            if (validImages.length > 0) {
+                await prepareReferenceInputs(task, validImages, payload);
+            }
 
-                // Handle Resolution mapping to width/height roughly (documentation suggests fixed mappings, this is a simplified approach based on the doc's "Recommended WxH" table)
+            if (isSeedream) {
+                payload.scale = 50;
+                payload.forceSingle = false;
+                payload.minRatio = 0.333333;
+                payload.maxRatio = 3;
+
                 if (profile.showResolution && task.params?.resolution) {
                     const res = task.params.resolution;
                     let baseSize = 1024;
@@ -5580,33 +5587,23 @@
                     const [w, h] = ratioStr.split(':').map(Number);
                     const ratio = w / h;
 
-                    // Simple approximation based on total pixels and ratio
                     const totalPixels = baseSize * baseSize;
                     const calcH = Math.round(Math.sqrt(totalPixels / ratio));
                     const calcW = Math.round(calcH * ratio);
 
                     payload.width = calcW;
                     payload.height = calcH;
-                    payload.minRatio = Math.min(ratio, 0.333333); // Keep defaults or adjust based on actual ratio
-                    payload.maxRatio = Math.max(ratio, 3);
                 }
-
             } else {
-                payload.append('modelFamily', getTaskModelFamily(task));
-                payload.append('prompt', task.prompt);
                 if (task.params?.aspectRatio) {
-                    payload.append('aspectRatio', task.params.aspectRatio);
+                    payload.aspectRatio = task.params.aspectRatio;
                 }
                 if (profile.showResolution && task.params?.resolution) {
-                    payload.append('resolution', task.params.resolution);
+                    payload.resolution = task.params.resolution;
                 }
                 if (isProfileFeatureEnabled(profile.showQuality, task.params || {}) && task.params?.quality) {
-                    payload.append('quality', task.params.quality);
+                    payload.quality = task.params.quality;
                 }
-                if (isProfileFeatureEnabled(profile.showOutputFormat, task.params || {}) && task.params?.outputFormat) {
-                    payload.append('outputFormat', task.params.outputFormat);
-                }
-                await prepareReferenceInputs(task, validImages, payload);
             }
 
             recordTaskEvent(task, 'task.submit.request', `正在提交 RunningHub 请求`, {
@@ -5614,17 +5611,15 @@
                 modelFamily: getTaskModelFamily(task)
             });
 
-            const headers = { 'Authorization': `Bearer ${task.apiKey}` };
-            if (!isSeedream) {
-                headers['X-API-Key'] = task.apiKey;
-            } else {
-                headers['Content-Type'] = 'application/json';
-            }
+            const headers = {
+                'Authorization': `Bearer ${task.apiKey}`,
+                'Content-Type': 'application/json'
+            };
 
             const response = await fetch(url, {
                 method: 'POST',
                 headers,
-                body: isSeedream ? JSON.stringify(payload) : payload
+                body: JSON.stringify(payload)
             });
 
             const data = await readJsonResponse(response);
@@ -5664,31 +5659,23 @@
         function startPolling(task) {
             const pollInterval = (parseInt(document.getElementById('pollInterval').value) || 8) * 1000;
             const maxAttempts = 120; // 最多轮询120次
-            const isSeedream = resolveProviderId(task.providerId) === 'seedream';
 
             const poll = async () => {
                 task.pollAttempts++;
 
                 try {
-                    const url = isSeedream
-                        ? buildApiUrl(task.baseUrl, '/openapi/v2/query')
-                        : buildApiUrl(task.baseUrl, `/api/tasks/${encodeURIComponent(task.serverTaskId)}`);
+                    const url = buildApiUrl(task.baseUrl, '/openapi/v2/query');
 
-                    const headers = { 'Authorization': `Bearer ${task.apiKey}` };
-                    if (!isSeedream) {
-                        headers['X-API-Key'] = task.apiKey;
-                    } else {
-                        headers['Content-Type'] = 'application/json';
-                    }
-
-                    const fetchOptions = {
-                        method: isSeedream ? 'POST' : 'GET',
-                        headers
+                    const headers = {
+                        'Authorization': `Bearer ${task.apiKey}`,
+                        'Content-Type': 'application/json'
                     };
 
-                    if (isSeedream) {
-                        fetchOptions.body = JSON.stringify({ taskId: task.serverTaskId });
-                    }
+                    const fetchOptions = {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ taskId: task.serverTaskId })
+                    };
 
                     const response = await fetch(url, fetchOptions);
 
@@ -5698,24 +5685,22 @@
                         throw new Error(getApiErrorMessage(data, `查询任务失败: HTTP ${response.status}`));
                     }
 
-                    let status = data.status;
-                    if (isSeedream) {
-                        // Map Seedream status
-                        if (status === 'QUEUED' || status === 'RUNNING') {
-                            status = 'processing';
-                            task.progress = '50%';
-                        } else if (status === 'SUCCESS') {
-                            status = 'success';
-                            task.progress = '100%';
-                        } else if (status === 'FAILED') {
-                            status = 'failed';
-                            throw new Error(data.errorMessage || 'Seedream 任务生成失败');
-                        }
+                    let status = data.status || data.data?.status;
+
+                    // Map RunningHub status
+                    if (status === 'QUEUED' || status === 'RUNNING') {
+                        status = 'processing';
+                        task.progress = '50%';
+                    } else if (status === 'SUCCESS') {
+                        status = 'success';
+                        task.progress = '100%';
+                    } else if (status === 'FAILED') {
+                        status = 'failed';
+                        throw new Error(data.errorMessage || data.data?.errorMessage || '任务生成失败');
                     } else {
                         if (data.progress !== undefined) {
                             task.progress = `${Math.round(data.progress * 100)}%`;
                         } else {
-                            // 兼容一些没有 progress 字段的情况
                             if (status === 'processing') task.progress = '50%';
                             else if (status === 'completed') task.progress = '100%';
                         }
@@ -5728,7 +5713,7 @@
                         backendPhaseStatus: data.rawRecord?._rhReversePhaseStatus || null
                     });
 
-                    if (status === 'success') {
+                    if (status === 'success' || status === 'completed') {
                         // 任务完成
                         clearInterval(task.pollTimer);
                         task.status = 'completed';
