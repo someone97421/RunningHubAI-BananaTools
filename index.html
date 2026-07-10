@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 
 <head>
-    <link rel="icon" href="RH-RE.png?v=20260707" type="image/png">
+    <link rel="icon" href="favicon.png" type="image/png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RH-Reverse 图像生成器</title>
@@ -2280,11 +2280,11 @@
                         </h2>
                         <div class="model-tabs" role="tablist" aria-label="模型切换">
                             <button type="button" id="tab-gpt-image-2" class="model-tab active" role="tab"
-                                aria-selected="true" onclick="setActiveProvider('gpt-image-2')">全能图片G</button>
+                                aria-selected="true" onclick="setActiveProvider('gpt-image-2')">GPT-Image-2</button>
                             <button type="button" id="tab-nanobanana2" class="model-tab" role="tab"
-                                aria-selected="false" onclick="setActiveProvider('nano-banana2')">全能图片V2</button>
+                                aria-selected="false" onclick="setActiveProvider('nano-banana2')">Nanobanana-2</button>
                             <button type="button" id="tab-nanobanana-pro" class="model-tab" role="tab"
-                                aria-selected="false" onclick="setActiveProvider('nano-banana-pro')">全能图片PRO</button>
+                                aria-selected="false" onclick="setActiveProvider('nano-banana-pro')">Nanobanana-PRO</button>
                             <button type="button" id="tab-seedream" class="model-tab" role="tab"
                                 aria-selected="false" onclick="setActiveProvider('seedream')">Seedream</button>
                         </div>
@@ -2636,7 +2636,8 @@
             },
             'nano-banana-pro': {
                 'low-cost': { '1k': 0.4, '2k': 0.4, '4k': 0.5 },
-                official: { '1k': 0.8, '2k': 1, '4k': 1.5 }
+                official: { '1k': 0.8, '2k': 1, '4k': 1.5 },
+                ultra: { '4k': 0.98, '8k': 1.12 }
             },
             'gpt-image-2': {
                 'low-cost': { flat: 0.1 },
@@ -2659,7 +2660,7 @@
             'nano-banana2': {
                 id: 'nano-banana2',
                 tabId: 'tab-nanobanana2',
-                label: '全能图片V2',
+                label: 'Nanobanana-2',
                 requestType: 'rh-reverse',
                 familyKeys: {
                     'low-cost': 'nano-banana2-low-cost',
@@ -2678,28 +2679,40 @@
             'nano-banana-pro': {
                 id: 'nano-banana-pro',
                 tabId: 'tab-nanobanana-pro',
-                label: '全能图片PRO',
+                label: 'Nanobanana-PRO',
                 requestType: 'rh-reverse',
                 familyKeys: {
                     'low-cost': 'nano-banana-pro-low-cost',
-                    official: 'nano-banana-pro-official'
+                    official: 'nano-banana-pro-official',
+                    ultra: 'nano-banana-pro-ultra'
                 },
                 aspectRatioLabel: '宽高比',
                 aspectRatioOptions(settings = {}) {
-                    return settings.modelType === 'official' ? NANO_PRO_OFFICIAL_ASPECTS : NANO_PRO_LOW_COST_ASPECTS;
+                    return settings.modelType === 'official' || settings.modelType === 'ultra' ? NANO_PRO_OFFICIAL_ASPECTS : NANO_PRO_LOW_COST_ASPECTS;
                 },
                 showModelType: true,
                 modelTypeLabel: '价格通道',
-                modelTypeOptions: CHANNEL_OPTIONS,
+                modelTypeOptions: [
+                    ...CHANNEL_OPTIONS,
+                    { value: 'ultra', label: 'Ultra (官方稳定)' }
+                ],
                 showResolution: true,
-                resolutionOptions: RESOLUTION_OPTIONS,
+                resolutionOptions(settings = {}) {
+                    if (settings.modelType === 'ultra') {
+                        return [
+                            { value: '4k', label: '4K' },
+                            { value: '8k', label: '8K' }
+                        ];
+                    }
+                    return RESOLUTION_OPTIONS;
+                },
                 showQuality: false,
                 promptPlaceholder: '描述你想要生成的图像内容...'
             },
             'gpt-image-2': {
                 id: 'gpt-image-2',
                 tabId: 'tab-gpt-image-2',
-                label: '全能图片G',
+                label: 'GPT-Image-2',
                 requestType: 'rh-reverse',
                 familyKeys: {
                     'low-cost': 'gpt-image-2-low-cost',
