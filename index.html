@@ -1214,6 +1214,12 @@
             --task-state-border: rgba(56, 189, 248, 0.36);
         }
 
+        .task-item.recovering {
+            --task-state-color: #fb923c;
+            --task-state-bg: rgba(251, 146, 60, 0.12);
+            --task-state-border: rgba(251, 146, 60, 0.36);
+        }
+
         .task-item.completed {
             --task-state-color: #22c55e;
             --task-state-bg: rgba(34, 197, 94, 0.12);
@@ -1256,6 +1262,7 @@
         .task-status.pending,
         .task-status.submitting,
         .task-status.polling,
+        .task-status.recovering,
         .task-status.completed,
         .task-status.failed {
             background: color-mix(in srgb, var(--task-state-color) 82%, #0f172a);
@@ -2800,6 +2807,34 @@
         const ACCENT_COLOR_KEY = `${STORAGE_PREFIX}AccentColor`;
         const DEFAULT_TASK_HISTORY_LIMIT = 50;
 
+        function formatDuration(ms) {
+            if (!ms || ms < 0) return '0s';
+            const totalSeconds = Math.floor(ms / 1000);
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            return m > 0 ? `${m}m ${s}s` : `${s}s`;
+        }
+
+        function startGlobalTaskTimer() {
+            setInterval(() => {
+                const taskItems = document.querySelectorAll('.task-item');
+                taskItems.forEach(item => {
+                    const taskId = item.dataset.taskId;
+                    const task = taskQueue.find(t => t.id === taskId);
+                    if (!task) return;
+                    
+                    const isActive = task.status === 'pending' || task.status === 'submitting' || task.status === 'polling' || task.status === 'recovering';
+                    if (isActive) {
+                        const durationElement = item.querySelector('.task-duration');
+                        if (durationElement) {
+                            const durationMs = Date.now() - task.startTime;
+                            durationElement.textContent = formatDuration(durationMs);
+                        }
+                    }
+                });
+            }, 1000);
+        }
+
         function getTaskHistoryLimit() {
             const input = document.getElementById('taskHistoryLimit');
             const value = parseInt(input?.value, 10);
@@ -2808,27 +2843,40 @@
 
         function saveTaskHistory() {
             const maxTaskHistory = getTaskHistoryLimit();
-            const completedTasks = taskQueue
-                .filter(t => t.status === 'completed' || t.status === 'failed')
-                .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
-                .map(t => ({
-                    id: t.id,
-                    providerId: t.providerId,
-                    label: t.label,
-                    prompt: t.prompt,
-                    status: t.status,
-                    progress: t.progress,
-                    error: t.error,
-                    startTime: t.startTime,
-                    uploadStrategy: t.uploadStrategy,
-                    uploadRecords: t.uploadRecords,
-                    submitSummary: t.submitSummary,
-                    timeline: t.timeline
-                }));
-            const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]');
-            const merged = [...completedTasks, ...saved.filter(s => !completedTasks.find(c => c.id === s.id))];
+            // Ensure we don't discard active tasks if possible
+            const active = taskQueue.filter(t => t.status === 'pending' || t.status === 'submitting' || t.status === 'polling' || t.status === 'recovering');
+            const completed = taskQueue.filter(t => t.status === 'completed' || t.status === 'failed')
+                .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+            
+            // Merge active first, then completed
+            const merged = [...active, ...completed];
             const trimmed = merged.slice(0, maxTaskHistory);
-            localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(trimmed));
+            
+            // Keep in-memory taskQueue in sync with trimmed list
+            taskQueue = taskQueue.filter(t => trimmed.some(s => s.id === t.id));
+            
+            const serialized = trimmed.map(t => ({
+                id: t.id,
+                baseUrl: t.baseUrl || '',
+                apiKey: t.apiKey || '',
+                providerId: t.providerId,
+                label: t.label,
+                prompt: t.prompt,
+                params: t.params,
+                uploadStrategy: t.uploadStrategy,
+                uploadRecords: t.uploadRecords,
+                submitSummary: t.submitSummary,
+                status: t.status,
+                serverTaskId: t.serverTaskId,
+                progress: t.progress,
+                result: t.result,
+                error: t.error,
+                startTime: t.startTime,
+                endTime: t.endTime || null,
+                pollAttempts: t.pollAttempts,
+                timeline: t.timeline
+            }));
+            localStorage.setItem(TASK_HISTORY_KEY, JSON.stringify(serialized));
         }
 
         function loadTaskHistory() {
@@ -2836,12 +2884,147 @@
                 const saved = JSON.parse(localStorage.getItem(TASK_HISTORY_KEY) || '[]').slice(0, getTaskHistoryLimit());
                 saved.forEach(t => {
                     if (!taskQueue.find(q => q.id === t.id)) {
-                        taskQueue.push({ ...t, images: [], pollTimer: null, pollAttempts: 0, serverTaskId: null, params: null, baseUrl: '', apiKey: '', uploadRecords: t.uploadRecords || [], timeline: t.timeline || [] });
+                        taskQueue.push({
+                            ...t,
+                            images: [],
+                            pollTimer: null,
+                            pollAttempts: t.pollAttempts || 0,
+                            serverTaskId: t.serverTaskId || null,
+                            params: t.params || null,
+                            baseUrl: t.baseUrl || '',
+                            apiKey: t.apiKey || '',
+                            uploadRecords: t.uploadRecords || [],
+                            timeline: t.timeline || [],
+                            endTime: t.endTime || null
+                        });
                     }
                 });
             } catch (e) {
                 console.error('Failed to load task history:', e);
             }
+        }
+
+        async function recoverInterruptedTasks() {
+            // Find all incomplete tasks
+            const incompleteTasks = taskQueue.filter(t => 
+                t.status === 'pending' || 
+                t.status === 'submitting' || 
+                t.status === 'polling' ||
+                t.status === 'recovering'
+            );
+            
+            if (incompleteTasks.length === 0) return;
+            
+            // Mark all of them as 'recovering' initially so the UI shows "恢复中"
+            incompleteTasks.forEach(task => {
+                task.status = 'recovering';
+                task.progress = '0%';
+                recordTaskEvent(task, 'task.recovery.start', '页面加载：尝试恢复中断的任务');
+            });
+            
+            updateTaskUI();
+            
+            // Process each incomplete task
+            for (const task of incompleteTasks) {
+                const { serverTaskId, baseUrl, apiKey } = task;
+                
+                // Rule: 没有任务 ID、缺少配置 -> 直接标为失败，并保留具体原因。
+                if (!serverTaskId) {
+                    task.status = 'failed';
+                    task.endTime = Date.now();
+                    task.error = '未生成任务ID，已被页面刷新或关闭中断';
+                    recordTaskEvent(task, 'task.recovery.failed', '恢复失败：未生成任务ID', { error: task.error });
+                    saveTaskHistory();
+                    updateTaskUI(task);
+                    continue;
+                }
+                
+                if (!baseUrl || !apiKey) {
+                    task.status = 'failed';
+                    task.endTime = Date.now();
+                    task.error = '缺少API配置，无法进行恢复查询';
+                    recordTaskEvent(task, 'task.recovery.failed', '恢复失败：缺少 API Key 或 Base URL', { error: task.error });
+                    saveTaskHistory();
+                    updateTaskUI(task);
+                    continue;
+                }
+                
+                try {
+                    const url = buildApiUrl(baseUrl, '/openapi/v2/query');
+                    const headers = {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    };
+                    
+                    recordTaskEvent(task, 'task.recovery.query', `正在查询后端任务状态`, { serverTaskId });
+                    
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ taskId: serverTaskId })
+                    });
+                    
+                    const data = await readJsonResponse(response);
+                    
+                    if (!response.ok) {
+                        const errMsg = getApiErrorMessage(data, `HTTP ${response.status}: ${response.statusText}`);
+                        throw new Error(errMsg);
+                    }
+                    
+                    let status = data.status || data.data?.status;
+                    
+                    if (status === 'QUEUED' || status === 'RUNNING' || status === 'processing') {
+                        // 后端仍在排队或运行：重置轮询次数并继续轮询。
+                        task.status = 'polling';
+                        task.pollAttempts = 0;
+                        task.progress = '50%';
+                        task.result = data;
+                        runningTaskCount++; // 记为运行中任务
+                        recordTaskEvent(task, 'task.recovery.success', '任务仍在运行中，已成功接上轮询', { serverTaskId });
+                        saveTaskHistory();
+                        updateTaskUI(task);
+                        
+                        // 开始轮询
+                        startPolling(task);
+                    } else if (status === 'SUCCESS' || status === 'completed' || status === 'success') {
+                        // 后端已完成：更新卡片为最终状态。
+                        task.status = 'completed';
+                        task.endTime = Date.now();
+                        task.result = data;
+                        task.progress = '100%';
+                        recordTaskEvent(task, 'task.recovery.completed', '任务已在后台完成，已成功恢复结果');
+                        
+                        // 保存和显示结果
+                        displayTaskResult(task);
+                        await saveTaskResultToHistory(task);
+                        saveTaskHistory();
+                        updateTaskUI(task);
+                    } else if (status === 'FAILED' || status === 'failed') {
+                        // 后端已失败：更新卡片为最终状态。
+                        task.status = 'failed';
+                        task.endTime = Date.now();
+                        task.result = data;
+                        task.error = data.errorMessage || data.data?.errorMessage || '任务生成失败';
+                        recordTaskEvent(task, 'task.recovery.failed', '后台任务执行失败', { error: task.error });
+                        saveTaskHistory();
+                        updateTaskUI(task);
+                    } else {
+                        // 未知或找不到任务
+                        throw new Error(`未知的任务状态: ${status}`);
+                    }
+                } catch (error) {
+                    // 接口报错或找不到任务：直接标为失败，并保留具体原因。
+                    task.status = 'failed';
+                    task.endTime = Date.now();
+                    task.error = `查询接口报错或找不到任务: ${error.message}`;
+                    recordTaskEvent(task, 'task.recovery.failed', '查询后端失败', { error: task.error });
+                    saveTaskHistory();
+                    updateTaskUI(task);
+                }
+            }
+            
+            // 恢复检查完毕后，如果当前并发数未满，可以继续调度队列中的 pending 任务
+            processTaskQueue();
         }
 
         // IndexedDB 相关 - RunningHubAI 生成器本地缓存
@@ -2861,6 +3044,8 @@
             initTaskSidebar();
             await initDB();
             loadTaskHistory();
+            recoverInterruptedTasks();
+            startGlobalTaskTimer();
             updateTaskUI();
             loadHistory();
             setupAutoSave();
@@ -5332,6 +5517,7 @@
             } catch (error) {
                 console.error('Task execution error:', error);
                 task.status = 'failed';
+                task.endTime = Date.now();
                 task.error = error.message;
                 runningTaskCount--;
                 recordTaskEvent(task, 'task.failed', '任务执行链路失败', { error: task.error });
@@ -5739,6 +5925,7 @@
                         // 任务完成
                         clearInterval(task.pollTimer);
                         task.status = 'completed';
+                        task.endTime = Date.now();
                         task.result = data;
                         task.progress = '100%';
                         runningTaskCount--;
@@ -5757,6 +5944,7 @@
                         // 任务失败
                         clearInterval(task.pollTimer);
                         task.status = 'failed';
+                        task.endTime = Date.now();
                         task.error = data.error || '任务生成失败';
                         runningTaskCount--;
                         recordTaskEvent(task, 'task.failed', '后端任务失败', { error: task.error });
@@ -5773,6 +5961,7 @@
                     if (task.pollAttempts >= maxAttempts) {
                         clearInterval(task.pollTimer);
                         task.status = 'failed';
+                        task.endTime = Date.now();
                         task.error = '任务超时，请稍后在历史记录中查看结果';
                         runningTaskCount--;
                         recordTaskEvent(task, 'task.poll.timeout', '轮询超时');
@@ -5783,6 +5972,7 @@
                 } catch (error) {
                     clearInterval(task.pollTimer);
                     task.status = 'failed';
+                    task.endTime = Date.now();
                     task.error = error.message;
                     runningTaskCount--;
                     recordTaskEvent(task, 'task.poll.error', '轮询请求失败', { error: task.error });
@@ -5991,6 +6181,7 @@
                 'pending': '等待中',
                 'submitting': '提交中',
                 'polling': '生成中',
+                'recovering': '恢复中',
                 'completed': '已完成',
                 'failed': '失败'
             }[status] || status;
@@ -6002,6 +6193,7 @@
 
         function getTaskDebugInfo(task) {
             const imageCount = (task.images || []).length;
+            const durationMs = (task.endTime || Date.now()) - task.startTime;
             return {
                 id: task.id,
                 serverTaskId: task.serverTaskId,
@@ -6020,6 +6212,8 @@
                 error: task.error,
                 pollAttempts: task.pollAttempts,
                 startTime: new Date(task.startTime).toLocaleString(),
+                endTime: task.endTime ? new Date(task.endTime).toLocaleString() : null,
+                duration: formatDuration(durationMs),
                 result: task.result ? '已返回数据' : null
             };
         }
@@ -6056,14 +6250,19 @@
         function renderTaskItemInner(task) {
             const isSelected = task.id === selectedTaskId;
             const progress = parseInt(task.progress) || 0;
+            const durationMs = (task.endTime || Date.now()) - task.startTime;
+            const durationText = formatDuration(durationMs);
             return `
                 <div class="task-header">
                     <span class="task-id">${task.id.slice(-8)}</span>
-                    <span class="task-status ${task.status}">${getTaskStatusText(task.status)}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="task-duration" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${durationText}</span>
+                        <span class="task-status ${task.status}">${getTaskStatusText(task.status)}</span>
+                    </div>
                 </div>
                 <div class="task-model-label">${escapeHtml(task.label || 'NanoBanana')}</div>
                 <div class="task-prompt" title="${escapeHtml(task.prompt)}">${escapeHtml(task.prompt)}</div>
-                ${task.status === 'polling' || task.status === 'submitting' ? `
+                ${task.status === 'polling' || task.status === 'submitting' || task.status === 'recovering' ? `
                     <div class="task-progress-bar">
                         <div class="task-progress-fill" style="width: ${progress}%"></div>
                     </div>
@@ -6089,7 +6288,7 @@
 
         function patchTaskItem(taskElement, task) {
             const progress = parseInt(task.progress) || 0;
-            const shouldShowProgress = task.status === 'polling' || task.status === 'submitting';
+            const shouldShowProgress = task.status === 'polling' || task.status === 'submitting' || task.status === 'recovering';
             const shouldShowError = task.status === 'failed';
             const shouldShowDebug = task.id === selectedTaskId;
             const progressBar = taskElement.querySelector('.task-progress-bar');
@@ -6105,6 +6304,15 @@
             const nextTaskClassName = `task-item ${task.status} ${shouldShowDebug ? 'selected' : ''}`.trim();
             if (taskElement.dataset.taskStatus !== task.status) taskElement.dataset.taskStatus = task.status;
             if (taskElement.className !== nextTaskClassName) taskElement.className = nextTaskClassName;
+
+            const durationElement = taskElement.querySelector('.task-duration');
+            if (durationElement) {
+                const durationMs = (task.endTime || Date.now()) - task.startTime;
+                const nextDurationText = formatDuration(durationMs);
+                if (durationElement.textContent !== nextDurationText) {
+                    durationElement.textContent = nextDurationText;
+                }
+            }
 
             const statusElement = taskElement.querySelector('.task-status');
             if (statusElement) {
@@ -6165,6 +6373,10 @@
 
         // 更新任务UI
         function updateTaskUI(changedTask) {
+            if (changedTask && changedTask.id) {
+                saveTaskHistory();
+            }
+
             const taskContainer = document.getElementById('taskContainer');
             const taskCountEl = document.getElementById('taskCount');
             const taskFloatCountEl = document.getElementById('taskFloatCount');
