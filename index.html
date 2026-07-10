@@ -2327,13 +2327,29 @@
                             <option value="official">原价</option>
                         </select>
                     </div>
-                    <div class="space-y-1">
+                    <div class="space-y-1 hidden-param" id="resolutionModeGroup">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">尺寸模式</label>
+                        <select id="resolutionMode" class="w-full px-3 py-2.5 rounded-lg text-sm outline-none form-select">
+                            <option value="preset">分辨率档位 + 比例</option>
+                            <option value="custom">手动输入分辨率</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1" id="aspectRatioGroup">
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="aspectRatioLabel">宽高比</label>
                         <select id="aspectRatio" class="w-full px-3 py-2.5 rounded-lg text-sm outline-none form-select"></select>
                     </div>
                     <div class="space-y-1" id="resolutionGroup">
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="resolutionLabel">分辨率</label>
                         <select id="resolution" class="w-full px-3 py-2.5 rounded-lg text-sm outline-none form-select"></select>
+                    </div>
+                    <div class="space-y-1 hidden-param" id="customDimensionsGroup">
+                        <label class="text-xs font-medium" style="color: var(--text-muted);">手动分辨率</label>
+                        <div class="flex items-center gap-2">
+                            <input id="customWidth" type="number" min="16" step="16" value="2048" class="w-full px-3 py-2.5 rounded-lg text-sm outline-none form-select" aria-label="宽度">
+                            <span style="color: var(--text-muted);">×</span>
+                            <input id="customHeight" type="number" min="16" step="16" value="1152" class="w-full px-3 py-2.5 rounded-lg text-sm outline-none form-select" aria-label="高度">
+                        </div>
+                        <p class="text-[10px] leading-4" style="color: var(--text-muted);">宽高均为 16 的倍数 · 比例 1:16 至 16:1 · 像素 921,600 至 4,624,219</p>
                     </div>
                     <div class="space-y-1" id="qualityGroup" style="display:none;">
                         <label class="text-xs font-medium" style="color: var(--text-muted);" id="qualityLabel">画质</label>
@@ -2636,9 +2652,19 @@
         ];
 
         const SEEDREAM5_PRO_RESOLUTION_OPTIONS = [
-            { value: '1k', label: '1K' },
-            { value: '2k', label: '2K' }
+            { value: '1k', label: '低价档（¥0.30）' },
+            { value: '2k', label: '高价档（¥0.60）' }
         ];
+
+        const SEEDREAM5_PRO_ASPECTS = [
+            { value: '1:1', label: '1:1（正方形）' }, { value: '3:4', label: '3:4（竖向）' }, { value: '4:3', label: '4:3（横向）' },
+            { value: '9:16', label: '9:16（手机竖屏）' }, { value: '16:9', label: '16:9（宽屏）' }, { value: '2:3', label: '2:3（竖向）' },
+            { value: '3:2', label: '3:2（横向）' }, { value: '21:9', label: '21:9（超宽屏）' }, { value: '9:21', label: '9:21（超长图）' }
+        ];
+        const SEEDREAM5_PRO_DIMENSIONS = {
+            '1k': { '1:1': [1536,1536], '3:4': [1296,1728], '4:3': [1728,1296], '9:16': [1152,2048], '16:9': [2048,1152], '2:3': [1248,1872], '3:2': [1872,1248], '21:9': [2016,864], '9:21': [864,2016] },
+            '2k': { '1:1': [2144,2144], '3:4': [1824,2432], '4:3': [2432,1824], '9:16': [1584,2816], '16:9': [2816,1584], '2:3': [1728,2592], '3:2': [2592,1728], '21:9': [3248,1392], '9:21': [1392,3248] }
+        };
 
         const QUALITY_OPTIONS = [
             { value: 'low', label: 'Low' },
@@ -2674,7 +2700,7 @@
                 'seedream4-5': { flat: 0.20 },
                 'seedream4-6': { flat: 0.17 },
                 'seedream5-lite': { flat: 0.22 },
-                'seedream5-pro': { '1k': 0.27, '2k': 0.54 }
+                'seedream5-pro': { '1k': 0.30, '2k': 0.60 }
             }
         };
 
@@ -2769,7 +2795,7 @@
                 },
                 aspectRatioLabel: '宽高比',
                 aspectRatioOptions(settings = {}) {
-                    return SEEDREAM_ASPECTS;
+                    return settings.modelType === 'seedream5-pro' ? SEEDREAM5_PRO_ASPECTS : SEEDREAM_ASPECTS;
                 },
                 showModelType: true,
                 modelTypeLabel: '模型版本',
@@ -3104,7 +3130,7 @@
         }
 
         function setupAutoSave() {
-            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'quality', 'outputFormat', 'historyLimit', 'taskHistoryLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
+            const inputs = ['baseUrl', 'apiKey', 'modelType', 'aspectRatio', 'resolution', 'resolutionMode', 'customWidth', 'customHeight', 'quality', 'outputFormat', 'historyLimit', 'taskHistoryLimit', 'enableCompression', 'maxEdgeLength', 'jpegQuality', 'maxConcurrency', 'pollInterval'];
             inputs.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
@@ -3176,12 +3202,24 @@
                     renderImageGrid();
                     updatePriceDisplay();
                 });
+                modelTypeEl.addEventListener('change', () => {
+                    const settings = collectProviderSettings();
+                    if (settings.modelType === 'seedream5-pro' && !['1k', '2k'].includes(settings.resolution)) settings.resolution = '2k';
+                    if (settings.modelType !== 'seedream5-pro') settings.resolutionMode = 'preset';
+                    applyProviderSettings(activeProvider, settings);
+                    autoSaveConfig();
+                });
             }
 
             ['aspectRatio', 'quality', 'outputFormat'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('change', updatePriceDisplay);
             });
+            document.getElementById('resolutionMode')?.addEventListener('change', () => {
+                applyProviderSettings(activeProvider, collectProviderSettings());
+                autoSaveConfig();
+            });
+            ['customWidth', 'customHeight'].forEach(id => document.getElementById(id)?.addEventListener('input', updatePriceDisplay));
 
             const promptEditor = document.getElementById('prompt');
             if (promptEditor) {
@@ -3383,7 +3421,7 @@
                 : profile.outputFormatOptions;
         }
 
-        const CUSTOM_SELECT_IDS = ['modelType', 'aspectRatio', 'resolution', 'quality', 'outputFormat'];
+        const CUSTOM_SELECT_IDS = ['modelType', 'aspectRatio', 'resolution', 'resolutionMode', 'quality', 'outputFormat'];
 
         function initCustomSelects() {
             CUSTOM_SELECT_IDS.forEach(id => {
@@ -3565,11 +3603,17 @@
 
         function collectProviderSettings() {
             const profile = getActiveProfile();
-            const settings = {
-                aspectRatio: document.getElementById('aspectRatio').value
-            };
+            const settings = {};
             if (profile.showModelType) {
                 settings.modelType = document.getElementById('modelType').value;
+            }
+            const isSeedream5Pro = profile.id === 'seedream' && settings.modelType === 'seedream5-pro';
+            settings.resolutionMode = isSeedream5Pro && document.getElementById('resolutionMode').value === 'custom' ? 'custom' : 'preset';
+            if (settings.resolutionMode === 'custom') {
+                settings.customWidth = Number(document.getElementById('customWidth').value);
+                settings.customHeight = Number(document.getElementById('customHeight').value);
+            } else {
+                settings.aspectRatio = document.getElementById('aspectRatio').value;
             }
             if (profile.showResolution) {
                 settings.resolution = document.getElementById('resolution').value;
@@ -3581,6 +3625,16 @@
                 settings.outputFormat = document.getElementById('outputFormat').value;
             }
             return settings;
+        }
+
+        function validateSeedream5ProCustomDimensions(width, height) {
+            if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return '手动宽高必须是大于 0 的整数';
+            if (width % 16 !== 0 || height % 16 !== 0) return '手动宽高都必须是 16 的倍数';
+            if (Math.max(width, height) / Math.min(width, height) > 16) return '手动宽高比必须在 1:16 至 16:1 之间';
+            const pixels = width * height;
+            if (pixels < 921600) return '手动总像素数不得小于 921,600（1280 × 720）';
+            if (pixels >= 4624220) return '手动总像素数必须小于 4,624,220';
+            return null;
         }
 
         function applyProviderSettings(providerId, settings = {}) {
@@ -3597,6 +3651,21 @@
                 document.getElementById('modelTypeGroup').classList.add('hidden-param');
             }
 
+            const isSeedream5Pro = profile.id === 'seedream' && normalizedSettings.modelType === 'seedream5-pro';
+            if (isSeedream5Pro && !['1k', '2k'].includes(normalizedSettings.resolution)) normalizedSettings.resolution = '2k';
+            normalizedSettings.resolutionMode = isSeedream5Pro && normalizedSettings.resolutionMode === 'custom' ? 'custom' : 'preset';
+            const customMode = isSeedream5Pro && normalizedSettings.resolutionMode === 'custom';
+            if (isSeedream5Pro) {
+                document.getElementById('resolutionModeGroup').classList.remove('hidden-param');
+                buildSelectOptions(document.getElementById('resolutionMode'), [{ value: 'preset', label: '分辨率档位 + 比例' }, { value: 'custom', label: '手动输入分辨率' }], normalizedSettings.resolutionMode);
+                document.getElementById('customWidth').value = normalizedSettings.customWidth || 2048;
+                document.getElementById('customHeight').value = normalizedSettings.customHeight || 1152;
+                document.getElementById('customDimensionsGroup').classList.toggle('hidden-param', !customMode);
+            } else {
+                document.getElementById('resolutionModeGroup').classList.add('hidden-param');
+                document.getElementById('customDimensionsGroup').classList.add('hidden-param');
+            }
+
             document.getElementById('aspectRatioLabel').textContent = profile.aspectRatioLabel;
             let aspectOptions = getProfileAspectRatioOptions(profile, normalizedSettings);
             if (profile.aspectRatioOptions4k && normalizedSettings.resolution === '4k') {
@@ -3604,9 +3673,10 @@
             }
             const currentAspectRatio = normalizedSettings.aspectRatio || aspectOptions[0]?.value;
             const safeAspectRatio = aspectOptions.find(o => o.value === currentAspectRatio) ? currentAspectRatio : aspectOptions[0]?.value;
-            buildSelectOptions(document.getElementById('aspectRatio'), aspectOptions, safeAspectRatio);
+            document.getElementById('aspectRatioGroup').classList.toggle('hidden-param', customMode);
+            if (!customMode) buildSelectOptions(document.getElementById('aspectRatio'), aspectOptions, safeAspectRatio);
 
-            if (profile.showResolution) {
+            if (profile.showResolution && !customMode) {
                 document.getElementById('resolutionGroup').classList.remove('hidden-param');
                 document.getElementById('resolutionLabel').textContent = '分辨率';
                 buildSelectOptions(document.getElementById('resolution'), getProfileResolutionOptions(profile, normalizedSettings), normalizedSettings.resolution || '');
@@ -3647,8 +3717,10 @@
             if (paramGrid) {
                 const visibleCount = [
                     profile.showModelType,
-                    true,
-                    profile.showResolution,
+                    !customMode,
+                    profile.showResolution && !customMode,
+                    isSeedream5Pro,
+                    customMode,
                     isProfileFeatureEnabled(profile.showQuality, normalizedSettings),
                     isProfileFeatureEnabled(profile.showOutputFormat, normalizedSettings)
                 ].filter(Boolean).length;
@@ -3680,7 +3752,7 @@
         }
 
         function getCurrentPrice() {
-            const resolution = document.getElementById('resolution')?.value || '2k';
+            let resolution = document.getElementById('resolution')?.value || '2k';
             const quality = document.getElementById('quality')?.value || 'medium';
             const modelType = document.getElementById('modelType')?.value || 'low-cost';
             const priceData = PRICE_TABLE[activeProvider];
@@ -3694,6 +3766,9 @@
             if (activeProvider === 'seedream') {
                 const seedreamPrice = priceData[modelType];
                 if (!seedreamPrice) return null;
+                if (modelType === 'seedream5-pro' && document.getElementById('resolutionMode')?.value === 'custom') {
+                    resolution = Number(document.getElementById('customWidth')?.value) * Number(document.getElementById('customHeight')?.value) <= 2360000 ? '1k' : '2k';
+                }
                 return seedreamPrice.flat ?? seedreamPrice[resolution] ?? null;
             }
             return priceData[modelType]?.[resolution] ?? null;
@@ -5732,7 +5807,18 @@
                     payload.maxRatio = 3;
                 }
 
-                if (profile.showResolution && task.params?.resolution) {
+                if (modelType === 'seedream5-pro') {
+                    if (task.params?.resolutionMode === 'custom') {
+                        const dimensionError = validateSeedream5ProCustomDimensions(task.params.customWidth, task.params.customHeight);
+                        if (dimensionError) throw new Error(dimensionError);
+                        payload.width = task.params.customWidth;
+                        payload.height = task.params.customHeight;
+                    } else {
+                        const dimensions = SEEDREAM5_PRO_DIMENSIONS[task.params?.resolution]?.[task.params?.aspectRatio];
+                        if (!dimensions) throw new Error('Seedream 5 Pro 不支持当前的分辨率档位或宽高比组合');
+                        [payload.width, payload.height] = dimensions;
+                    }
+                } else if (profile.showResolution && task.params?.resolution) {
                     const res = task.params.resolution;
                     let baseSize = 1024;
                     if (res === '2k') baseSize = 2048;
@@ -6530,6 +6616,14 @@
             const apiKey = document.getElementById('apiKey').value.trim();
             const prompt = getParsedPromptText();
             const params = collectProviderSettings();
+
+            if (activeProvider === 'seedream' && params.modelType === 'seedream5-pro' && params.resolutionMode === 'custom') {
+                const dimensionError = validateSeedream5ProCustomDimensions(params.customWidth, params.customHeight);
+                if (dimensionError) {
+                    showMessage(dimensionError, 'error');
+                    return;
+                }
+            }
 
             if (!baseUrl || !apiKey) {
                 showMessage('请填写 RunningHubAI Base URL 和 API Key', 'error');
