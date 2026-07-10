@@ -5474,17 +5474,23 @@
                 throw new Error(getApiErrorMessage(data, `HTTP ${response.status}: ${response.statusText}`));
             }
 
-            if (data.code !== 0 || !data.data?.fileUrl) {
-                throw new Error(data.msg || '未能获取到返回的图片 URL');
+            const fileUrl = data.data?.fileUrl || data.data?.url || data.fileUrl || data.url || (typeof data.data === 'string' ? data.data : null);
+
+            if (data.code !== 0 && data.code !== 200) {
+                throw new Error(data.msg || data.message || `请求失败，code: ${data.code}`);
+            }
+
+            if (!fileUrl) {
+                throw new Error(data.msg || data.message || '未能获取到返回的图片 URL');
             }
 
             updateUploadRecord(task, index, {
                 status: 'url-ready',
                 progress: 100,
-                url: data.data.fileUrl,
+                url: fileUrl,
                 detail: 'RunningHub 已返回 URL'
             });
-            return data.data.fileUrl;
+            return fileUrl;
         }
 
         async function prepareReferenceInputs(task, validImages, payload) {
