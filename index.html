@@ -5285,7 +5285,7 @@
                 prompt,
                 params,
                 images: validImages,
-                uploadStrategy: 'runninghub-upload',
+                uploadStrategy: 'base64',
                 uploadRecords: [],
                 submitSummary: null,
                 status: 'pending', // pending, submitting, polling, completed, failed
@@ -5416,23 +5416,22 @@
             updateTaskUI(task);
         }
 
-        function createUploadRecord(file, index) {
+        function createReferenceRecord(file, index) {
             return {
                 index,
                 name: file.name || `reference-${index}`,
                 size: file.size,
                 type: file.type || '',
                 status: 'waiting',
-                strategy: 'runninghub-upload',
+                strategy: 'base64',
                 progress: 0,
                 startedAt: null,
                 updatedAt: nowTimeString(),
-                url: null,
                 error: null
             };
         }
 
-        function updateUploadRecord(task, index, patch) {
+        function updateReferenceRecord(task, index, patch) {
             if (!task.uploadRecords) task.uploadRecords = [];
             const record = task.uploadRecords.find(item => item.index === index);
             if (!record) return;
@@ -5440,122 +5439,51 @@
             updateTaskUI(task);
         }
 
-        function htmlEntityDecode(value) {
-            const textarea = document.createElement('textarea');
-            textarea.innerHTML = value;
-            return textarea.value;
-        }
-
-        function extractHtmlErrorSummary(html) {
-            const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
-            const description = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1];
-            const requestId = html.match(/Request ID:\s*<code[^>]*>([^<]+)<\/code>/i)?.[1];
-            return [title, description, requestId ? `Request ID: ${requestId}` : '']
-                .map(item => htmlEntityDecode(String(item || '').replace(/<[^>]+>/g, '').trim()))
-                .filter(Boolean)
-                .join('；');
-        }
-
-        function formatUploadError(status, body) {
-            const text = String(body || '').trim();
-            if (/^\s*</.test(text)) {
-                return extractHtmlErrorSummary(text) || `HTTP ${status}`;
-            }
-            return text || `HTTP ${status}`;
-        }
-
-        async function uploadFileToRunningHub(file, task, index) {
-            const form = new FormData();
-            form.append('file', file);
-
-            updateUploadRecord(task, index, {
-                status: 'uploading',
-                progress: 0,
-                startedAt: nowTimeString(),
-                detail: '正在上传到 RunningHub'
-            });
-
-            let response;
-            try {
-                response = await fetch(buildApiUrl(task.baseUrl, '/openapi/v2/media/upload/binary'), {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${task.apiKey}`
-                    },
-                    body: form
-                });
-            } catch (error) {
-                throw new Error('网络错误或被浏览器拦截');
-            }
-
-            const data = await readJsonResponse(response);
-            if (!response.ok) {
-                throw new Error(getApiErrorMessage(data, `HTTP ${response.status}: ${response.statusText}`));
-            }
-
-            const fileUrl = data.data?.download_url
-                || data.data?.downloadUrl
-                || data.data?.fileUrl
-                || data.data?.url
-                || data.download_url
-                || data.downloadUrl
-                || data.fileUrl
-                || data.url
-                || (typeof data.data === 'string' ? data.data : null);
-
-            const hasResponseCode = data.code !== undefined && data.code !== null && data.code !== '';
-            const responseCode = hasResponseCode ? Number(data.code) : null;
-            if ((hasResponseCode && responseCode !== 0 && responseCode !== 200) || data.success === false) {
-                throw new Error(getApiErrorMessage(data, hasResponseCode ? `请求失败，code: ${data.code}` : '上传请求失败'));
-            }
-
-            if (!fileUrl) {
-                throw new Error('上传接口返回成功，但响应中未包含 download_url、fileUrl 或 url');
-            }
-
-            updateUploadRecord(task, index, {
-                status: 'url-ready',
-                progress: 100,
-                url: fileUrl,
-                detail: 'RunningHub 已返回 URL'
-            });
-            return fileUrl;
-        }
-
         async function prepareReferenceInputs(task, validImages, payload) {
-            task.uploadStrategy = 'runninghub-upload';
-            task.uploadRecords = validImages.map((file, index) => createUploadRecord(file, index + 1));
+            task.uploadStrategy = 'base64';
+            task.uploadRecords = validImages.map((file, index) => createReferenceRecord(file, index + 1));
             task.submitSummary = {
-                urlCount: 0,
+                base64Count: 0,
                 totalFileCount: validImages.length
             };
-            recordTaskEvent(task, 'upload.prepare', '准备参考文件：上传至 RunningHub', task.submitSummary);
+            recordTaskEvent(task, 'reference.prepare', '准备参考文件：转换为 Base64', task.submitSummary);
 
-            const urls = [];
+            const dataUrls = [];
             for (let i = 0; i < validImages.length; i++) {
                 const file = validImages[i];
                 const index = i + 1;
                 try {
-                    const url = await uploadFileToRunningHub(file, task, index);
-                    urls.push(url);
-                    task.submitSummary.urlCount++;
-                    recordTaskEvent(task, 'upload.success', '上传成功，已使用 imageUrl', { file: file.name, url });
+                    updateReferenceRecord(task, index, {
+                        status: 'encoding',
+                        progress: 0,
+                        startedAt: nowTimeString(),
+                        detail: '正在转换为 Base64'
+                    });
+                    const dataUrl = await fileToBase64(file);
+                    dataUrls.push(dataUrl);
+                    task.submitSummary.base64Count++;
+                    updateReferenceRecord(task, index, {
+                        status: 'base64-ready',
+                        progress: 100,
+                        detail: 'Base64 已就绪'
+                    });
+                    recordTaskEvent(task, 'reference.success', '参考文件已转换为 Base64', { file: file.name });
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
-                    updateUploadRecord(task, index, {
+                    updateReferenceRecord(task, index, {
                         status: 'failed',
                         progress: 100,
                         error: message,
-                        detail: `上传失败：${message}`
+                        detail: `Base64 转换失败：${message}`
                     });
                     throw error;
                 }
             }
 
-            payload.imageUrls = urls;
+            payload.imageUrls = dataUrls;
 
-            task.submitSummary.totalReferenceCount = task.submitSummary.urlCount;
-            recordTaskEvent(task, 'upload.ready', '参考文件准备完成', task.submitSummary);
+            task.submitSummary.totalReferenceCount = task.submitSummary.base64Count;
+            recordTaskEvent(task, 'reference.ready', 'Base64 参考文件准备完成', task.submitSummary);
         }
 
         // 执行单个任务 - 适配 RunningHubAI API
@@ -6080,7 +6008,7 @@
                         <div class="upload-stage-item">
                             <div class="upload-stage-main">
                                 <div class="upload-stage-name">${escapeHtml(record.name || `reference-${record.index}`)}</div>
-                                <div class="upload-stage-detail">${escapeHtml(record.detail || record.url || record.error || '等待上传')}</div>
+                                <div class="upload-stage-detail">${escapeHtml(record.detail || record.error || '等待处理')}</div>
                             </div>
                             <span class="upload-stage-badge">${escapeHtml(`${record.status || 'waiting'} ${record.progress || 0}%`)}</span>
                         </div>
