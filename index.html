@@ -6457,6 +6457,14 @@
             return true;
         }
 
+        // 任务列表始终按提交时间倒序显示，避免持久化/恢复时的数组顺序影响 UI。
+        function orderTasksBySubmissionTime(tasks) {
+            return tasks.slice().sort((a, b) => {
+                const timeDifference = (Number(b.startTime) || 0) - (Number(a.startTime) || 0);
+                return timeDifference || String(b.id || '').localeCompare(String(a.id || ''));
+            });
+        }
+
         // 更新任务UI
         function updateTaskUI(changedTask) {
             if (changedTask && changedTask.id) {
@@ -6512,7 +6520,7 @@
                     </div>
                 `;
             } else {
-                const orderedTasks = taskQueue.slice().reverse();
+                const orderedTasks = orderTasksBySubmissionTime(taskQueue);
                 const changedTaskInList = changedTask && orderedTasks.some(task => task.id === changedTask.id);
                 const changedTaskEl = changedTaskInList ? document.getElementById(taskElementId(changedTask.id)) : null;
                 const canPatchSingleTask =
