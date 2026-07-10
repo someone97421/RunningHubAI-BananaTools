@@ -5,7 +5,7 @@
     <link rel="icon" href="favicon.png" type="image/png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RH-Reverse 图像生成器</title>
+    <title>RunningHubAI 图像生成器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -2015,7 +2015,7 @@
     <div class="max-w-7xl mx-auto space-y-4 app-main" id="appMain">
         <!-- 标题 -->
         <div class="text-center space-y-2 mb-8">
-            <h1 class="app-title">RH-Reverse 图像生成器</h1>
+            <h1 class="app-title">RunningHubAI 图像生成器</h1>
         </div>
 
         <!-- 第一排：设置区（可关闭抽屉） -->
@@ -2132,13 +2132,13 @@
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="space-y-2">
-                                <label class="text-sm font-medium" style="color: var(--text-secondary);">RH-Reverse Base
+                                <label class="text-sm font-medium" style="color: var(--text-secondary);">RunningHubAI Base
                                     URL</label>
                                 <input type="text" id="baseUrl" value=""
                                     class="w-full px-4 py-2.5 rounded-lg text-sm form-input">
                             </div>
                             <div class="space-y-2">
-                                <label class="text-sm font-medium" style="color: var(--text-secondary);">RH-Reverse API Key</label>
+                                <label class="text-sm font-medium" style="color: var(--text-secondary);">RunningHubAI API Key</label>
                                 <div class="secret-input-wrap">
                                     <input type="password" id="apiKey"
                                         class="w-full px-4 py-2.5 rounded-lg text-sm form-input">
@@ -2829,7 +2829,7 @@
             }
         }
 
-        // IndexedDB 相关 - RH-Reverse 生成器本地缓存
+        // IndexedDB 相关 - RunningHubAI 生成器本地缓存
         const DB_NAME = 'RHReverseGeneratorDB';
         const DB_VERSION = 2;
         const STORE_NAME = 'history';
@@ -4385,7 +4385,7 @@
                 grid.appendChild(slot);
             }
 
-            // RH-Reverse 图像模型统一最多支持 10 张参考图
+            // RunningHubAI 图像模型统一最多支持 10 张参考图
             if (totalReferenceCount < 10) {
                 const addSlot = document.createElement('div');
                 addSlot.className = 'image-slot pastable-indicator relative border-2 border-dashed rounded-xl overflow-hidden cursor-pointer group transition-all';
@@ -4423,7 +4423,7 @@
 
             const remaining = remainingReferenceSlots();
             if (remaining <= 0) {
-                showMessage('RH-Reverse 图像模型最多只能上传10张参考图', 'error');
+                showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
                 event.target.value = '';
                 return;
             }
@@ -4455,7 +4455,7 @@
 
             const remaining = remainingReferenceSlots();
             if (remaining <= 0) {
-                showMessage('RH-Reverse 图像模型最多只能上传10张参考图', 'error');
+                showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
                 return;
             }
 
@@ -4969,7 +4969,7 @@
                 await assignPreparedImage(files[0], index);
             } else {
                 if (remaining <= 0) {
-                    showMessage('RH-Reverse 图像模型最多只能上传10张参考图', 'error');
+                    showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
                     return;
                 }
                 const filesToAdd = files.slice(0, remaining);
@@ -5058,7 +5058,7 @@
                 for (let item of items) {
                     if (item.type.indexOf('image') !== -1) {
                         if (remainingReferenceSlots() <= 0) {
-                            showMessage('RH-Reverse 图像模型最多只能上传10张参考图', 'error');
+                            showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
                             return;
                         }
 
@@ -5091,7 +5091,7 @@
             });
         }
 
-        // API 配置管理 - RH-Reverse 专用
+        // API 配置管理 - RunningHubAI 专用
         function buildConfigPayload() {
             const providerSettings = loadProviderSettingsFromStorage();
             providerSettings[activeProvider] = collectProviderSettings();
@@ -5527,7 +5527,7 @@
             recordTaskEvent(task, 'upload.ready', '参考文件准备完成', task.submitSummary);
         }
 
-        // 执行单个任务 - 适配 RH-Reverse API
+        // 执行单个任务 - 适配 RunningHubAI API
         async function executeTask(task) {
             const profile = MODEL_PROFILES[resolveProviderId(task.providerId)] || MODEL_PROFILES['nano-banana2'];
             const validImages = task.images.filter(f => f !== null);
@@ -5561,7 +5561,7 @@
                 maxRatio: 3
             } : new FormData();
 
-            recordTaskEvent(task, 'task.submit.start', `开始组装 ${isSeedream ? 'RunningHub' : 'RH-Reverse'} 请求`);
+            recordTaskEvent(task, 'task.submit.start', `开始组装 RunningHub 请求`);
 
             if (isSeedream) {
                 if (validImages.length > 0) {
@@ -5609,7 +5609,7 @@
                 await prepareReferenceInputs(task, validImages, payload);
             }
 
-            recordTaskEvent(task, 'task.submit.request', `正在提交 ${isSeedream ? 'RunningHub' : 'RH-Reverse'} 请求`, {
+            recordTaskEvent(task, 'task.submit.request', `正在提交 RunningHub 请求`, {
                 url,
                 modelFamily: getTaskModelFamily(task)
             });
@@ -5630,11 +5630,11 @@
             const data = await readJsonResponse(response);
 
             if (!response.ok) {
-                recordTaskEvent(task, 'task.submit.failed', 'RH-Reverse 创建任务失败', { status: response.status, data });
+                recordTaskEvent(task, 'task.submit.failed', 'RunningHubAI 创建任务失败', { status: response.status, data });
                 throw new Error(getApiErrorMessage(data, `HTTP ${response.status}: ${response.statusText}`));
             }
 
-            // 获取 RH-Reverse 或 RunningHub 本地任务 ID 并开始轮询
+            // 获取 RunningHubAI 或 RunningHub 本地任务 ID 并开始轮询
             const serverTaskId = isSeedream ? data.data?.taskId || data.taskId : data.id;
             if (!serverTaskId) {
                 throw new Error('未能获取任务ID');
@@ -5643,7 +5643,7 @@
             task.serverTaskId = serverTaskId;
             task.result = data;
             task.status = 'polling';
-            recordTaskEvent(task, 'task.submit.success', `${isSeedream ? 'RunningHub' : 'RH-Reverse'} 已创建任务，进入轮询`, { serverTaskId });
+            recordTaskEvent(task, 'task.submit.success', `RunningHubAI 已创建任务，进入轮询`, { serverTaskId });
             updateTaskUI(task);
 
             // 开始轮询
@@ -5660,7 +5660,7 @@
             });
         }
 
-        // 开始轮询任务状态 - 适配 RH-Reverse API
+        // 开始轮询任务状态 - 适配 RunningHubAI API
         function startPolling(task) {
             const pollInterval = (parseInt(document.getElementById('pollInterval').value) || 8) * 1000;
             const maxAttempts = 120; // 最多轮询120次
@@ -5848,7 +5848,7 @@
                 if (Array.isArray(items)) items.forEach(addItem);
             };
 
-            // RH-Reverse structure
+            // RunningHubAI structure
             addArray(result?.results);
             addArray(result?.data?.results);
             addArray(result?.data);
@@ -5930,7 +5930,7 @@
         let selectedTaskId = null;
 
         // 页面通知和标题状态
-        const ORIGINAL_TITLE = 'RH-Reverse 图像生成器';
+        const ORIGINAL_TITLE = 'RunningHubAI 图像生成器';
         let titleFlashInterval = null;
         let currentBaseTitle = ORIGINAL_TITLE;
 
@@ -6219,7 +6219,7 @@
             return div.innerHTML;
         }
 
-        // 图像生成 - 使用任务队列 - 适配 RH-Reverse API
+        // 图像生成 - 使用任务队列 - 适配 RunningHubAI API
         async function generateImage() {
             const baseUrl = normalizeRhReverseBaseUrl(document.getElementById('baseUrl').value);
             document.getElementById('baseUrl').value = baseUrl;
@@ -6228,7 +6228,7 @@
             const params = collectProviderSettings();
 
             if (!baseUrl || !apiKey) {
-                showMessage('请填写 RH-Reverse Base URL 和 API Key', 'error');
+                showMessage('请填写 RunningHubAI Base URL 和 API Key', 'error');
                 return;
             }
             if (!prompt) {
