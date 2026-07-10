@@ -6000,22 +6000,9 @@
             return `task-item-${taskId}`;
         }
 
-        function renderTaskDebugPanel(task) {
-            const uploadRecords = task.uploadRecords || [];
-            const uploadStagesHtml = uploadRecords.length > 0 ? `
-                <div class="upload-stage-list">
-                    ${uploadRecords.map(record => `
-                        <div class="upload-stage-item">
-                            <div class="upload-stage-main">
-                                <div class="upload-stage-name">${escapeHtml(record.name || `reference-${record.index}`)}</div>
-                                <div class="upload-stage-detail">${escapeHtml(record.detail || record.error || '等待处理')}</div>
-                            </div>
-                            <span class="upload-stage-badge">${escapeHtml(`${record.status || 'waiting'} ${record.progress || 0}%`)}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : '';
-            const debugInfo = {
+        function getTaskDebugInfo(task) {
+            const imageCount = (task.images || []).length;
+            return {
                 id: task.id,
                 serverTaskId: task.serverTaskId,
                 providerId: task.providerId,
@@ -6028,13 +6015,31 @@
                 uploadRecords: task.uploadRecords || [],
                 submitSummary: task.submitSummary || null,
                 timeline: task.timeline || [],
-                imageCount: task.images.length,
-                isImageToImage: task.images.length > 0,
+                imageCount,
+                isImageToImage: imageCount > 0,
                 error: task.error,
                 pollAttempts: task.pollAttempts,
                 startTime: new Date(task.startTime).toLocaleString(),
                 result: task.result ? '已返回数据' : null
             };
+        }
+
+        function renderTaskDebugPanel(task) {
+            const uploadRecords = task.uploadRecords || [];
+            const uploadStagesHtml = uploadRecords.length > 0 ? `
+                <div class="upload-stage-list">
+                    ${uploadRecords.map(record => `
+                        <div class="upload-stage-item" data-reference-index="${escapeHtml(String(record.index))}">
+                            <div class="upload-stage-main">
+                                <div class="upload-stage-name">${escapeHtml(record.name || `reference-${record.index}`)}</div>
+                                <div class="upload-stage-detail">${escapeHtml(record.detail || record.error || '等待处理')}</div>
+                            </div>
+                            <span class="upload-stage-badge">${escapeHtml(`${record.status || 'waiting'} ${record.progress || 0}%`)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+            const debugInfo = getTaskDebugInfo(task);
 
             return `
                 <div class="task-debug-panel" onclick="event.stopPropagation()">
@@ -6043,7 +6048,7 @@
                         <button onclick="closeTaskDebugPanel(event)" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px;">✕</button>
                     </div>
                     ${uploadStagesHtml}
-                    <div class="task-debug-content">${JSON.stringify(debugInfo, null, 2)}</div>
+                    <div class="task-debug-content">${escapeHtml(JSON.stringify(debugInfo, null, 2))}</div>
                 </div>
             `;
         }
@@ -6065,7 +6070,7 @@
                     <div class="task-progress-text">${progress}%</div>
                 ` : ''}
                 ${task.status === 'failed' ? `
-                    <div class="task-progress-text" style="color: #ef4444;">${escapeHtml(task.error || '未知错误')}</div>
+                    <div class="task-progress-text task-error" style="color: #ef4444;">${escapeHtml(task.error || '未知错误')}</div>
                 ` : ''}
                 ${isSelected ? renderTaskDebugPanel(task) : ''}
             `;
@@ -6075,10 +6080,87 @@
             const isSelected = task.id === selectedTaskId;
             return `
                 <div id="${escapeHtml(taskElementId(task.id))}" class="task-item ${task.status} ${isSelected ? 'selected' : ''}"
-                     data-task-id="${escapeHtml(task.id)}" onclick="selectTask('${escapeHtml(task.id)}')">
+                     data-task-id="${escapeHtml(task.id)}" data-task-status="${escapeHtml(task.status)}"
+                     onclick="selectTask('${escapeHtml(task.id)}')">
                     ${renderTaskItemInner(task)}
                 </div>
             `;
+        }
+
+        function patchTaskItem(taskElement, task) {
+            const progress = parseInt(task.progress) || 0;
+            const shouldShowProgress = task.status === 'polling' || task.status === 'submitting';
+            const shouldShowError = task.status === 'failed';
+            const shouldShowDebug = task.id === selectedTaskId;
+            const progressBar = taskElement.querySelector('.task-progress-bar');
+            const errorElement = taskElement.querySelector('.task-error');
+            const debugPanel = taskElement.querySelector('.task-debug-panel');
+
+            if (Boolean(progressBar) !== shouldShowProgress ||
+                Boolean(errorElement) !== shouldShowError ||
+                Boolean(debugPanel) !== shouldShowDebug) {
+                return false;
+            }
+
+            const nextTaskClassName = `task-item ${task.status} ${shouldShowDebug ? 'selected' : ''}`.trim();
+            if (taskElement.dataset.taskStatus !== task.status) taskElement.dataset.taskStatus = task.status;
+            if (taskElement.className !== nextTaskClassName) taskElement.className = nextTaskClassName;
+
+            const statusElement = taskElement.querySelector('.task-status');
+            if (statusElement) {
+                const nextStatusClassName = `task-status ${task.status}`;
+                const nextStatusText = getTaskStatusText(task.status);
+                if (statusElement.className !== nextStatusClassName) statusElement.className = nextStatusClassName;
+                if (statusElement.textContent !== nextStatusText) statusElement.textContent = nextStatusText;
+            }
+
+            const modelElement = taskElement.querySelector('.task-model-label');
+            const nextModelText = task.label || 'NanoBanana';
+            if (modelElement && modelElement.textContent !== nextModelText) modelElement.textContent = nextModelText;
+
+            const promptElement = taskElement.querySelector('.task-prompt');
+            if (promptElement) {
+                const nextPromptText = task.prompt || '';
+                if (promptElement.textContent !== nextPromptText) promptElement.textContent = nextPromptText;
+                if (promptElement.title !== nextPromptText) promptElement.title = nextPromptText;
+            }
+
+            if (shouldShowProgress) {
+                const progressFill = taskElement.querySelector('.task-progress-fill');
+                const progressText = taskElement.querySelector('.task-progress-text');
+                const nextProgressText = `${progress}%`;
+                if (progressFill && progressFill.style.width !== nextProgressText) progressFill.style.width = nextProgressText;
+                if (progressText && progressText.textContent !== nextProgressText) progressText.textContent = nextProgressText;
+            }
+
+            if (errorElement) {
+                errorElement.textContent = task.error || '未知错误';
+            }
+
+            if (debugPanel) {
+                const uploadRecords = task.uploadRecords || [];
+                const stageItems = taskElement.querySelectorAll('[data-reference-index]');
+                if (stageItems.length !== uploadRecords.length) {
+                    return false;
+                }
+                uploadRecords.forEach(record => {
+                    const stageItem = taskElement.querySelector(`[data-reference-index="${record.index}"]`);
+                    if (!stageItem) return;
+                    const detailElement = stageItem.querySelector('.upload-stage-detail');
+                    const badgeElement = stageItem.querySelector('.upload-stage-badge');
+                    if (detailElement) detailElement.textContent = record.detail || record.error || '等待处理';
+                    if (badgeElement) badgeElement.textContent = `${record.status || 'waiting'} ${record.progress || 0}%`;
+                });
+
+                const debugContent = taskElement.querySelector('.task-debug-content');
+                if (debugContent) {
+                    const debugScrollTop = debugContent.scrollTop;
+                    debugContent.textContent = JSON.stringify(getTaskDebugInfo(task), null, 2);
+                    debugContent.scrollTop = debugScrollTop;
+                }
+            }
+
+            return true;
         }
 
         // 更新任务UI
@@ -6137,12 +6219,15 @@
                 const changedTaskEl = changedTaskInList ? document.getElementById(taskElementId(changedTask.id)) : null;
                 const canPatchSingleTask =
                     changedTaskEl &&
-                    changedTask.id !== selectedTaskId &&
                     taskContainer.querySelectorAll('.task-item').length === orderedTasks.length;
 
                 if (canPatchSingleTask) {
-                    changedTaskEl.className = `task-item ${changedTask.status}`;
-                    changedTaskEl.innerHTML = renderTaskItemInner(changedTask);
+                    if (!patchTaskItem(changedTaskEl, changedTask)) {
+                        const isSelected = changedTask.id === selectedTaskId;
+                        changedTaskEl.className = `task-item ${changedTask.status} ${isSelected ? 'selected' : ''}`.trim();
+                        changedTaskEl.dataset.taskStatus = changedTask.status;
+                        changedTaskEl.innerHTML = renderTaskItemInner(changedTask);
+                    }
                 } else {
                     taskContainer.innerHTML = orderedTasks.map(renderTaskItem).join('');
                 }
