@@ -2478,9 +2478,15 @@
             return getReferenceFileCount();
         }
 
+        function getMaxReferenceCount(providerId = activeProvider, settings = null) {
+            const resolvedProviderId = resolveProviderId(providerId);
+            const modelType = settings?.modelType || document.getElementById('modelType')?.value;
+            return resolvedProviderId === 'seedream' && modelType === 'seedream4-6' ? 14 : 10;
+        }
+
         function remainingReferenceSlots(replacedIndex = null) {
             const replacingExisting = replacedIndex !== null && imageFiles[replacedIndex] ? 1 : 0;
-            return 10 - getReferenceTotalCount() + replacingExisting;
+            return getMaxReferenceCount() - getReferenceTotalCount() + replacingExisting;
         }
 
         function getDefaultRunningHubBaseUrl() {
@@ -2493,7 +2499,7 @@
             'nano-banana2': { aspectRatio: '16:9', modelType: 'low-cost', resolution: '2k' },
             'nano-banana-pro': { aspectRatio: '16:9', modelType: 'low-cost', resolution: '2k' },
             'gpt-image-2': { aspectRatio: '16:9', modelType: 'low-cost', resolution: '2k', quality: 'medium' },
-            seedream: { aspectRatio: '16:9', modelType: 'seedream4-6', resolution: '2k', outputFormat: 'png' }
+            seedream: { aspectRatio: '16:9', modelType: 'seedream4-6', resolution: '2k', outputFormat: 'jpeg' }
         };
 
         const LEGACY_PROVIDER_DEFAULT_SETTINGS = {
@@ -2580,7 +2586,12 @@
             { value: '3:4', label: '3:4 (纵向)' },
             { value: '16:9', label: '16:9 (宽屏)' },
             { value: '9:16', label: '9:16 (手机竖屏)' },
-            { value: '21:9', label: '21:9 (超宽屏)' }
+            { value: '21:9', label: '21:9 (超宽屏)' },
+            { value: '9:21', label: '9:21 (超长图)' },
+            { value: '2:1', label: '2:1 (横向)' },
+            { value: '1:2', label: '1:2 (纵向)' },
+            { value: '3:1', label: '3:1 (超宽屏)' },
+            { value: '1:3', label: '1:3 (长图/海报)' }
         ];
 
         const GPT_IMAGE_2_OFFICIAL_ASPECTS = [
@@ -2593,7 +2604,12 @@
             { value: '5:4', label: '5:4 (横向)' },
             { value: '9:16', label: '9:16 (手机竖屏)' },
             { value: '16:9', label: '16:9 (宽屏)' },
-            { value: '21:9', label: '21:9 (超宽屏)' }
+            { value: '21:9', label: '21:9 (超宽屏)' },
+            { value: '9:21', label: '9:21 (超长图)' },
+            { value: '2:1', label: '2:1 (横向)' },
+            { value: '1:2', label: '1:2 (纵向)' },
+            { value: '3:1', label: '3:1 (超宽屏)' },
+            { value: '1:3', label: '1:3 (长图/海报)' }
         ];
 
         const RESOLUTION_OPTIONS = [
@@ -2604,8 +2620,7 @@
 
         const SEEDREAM5_RESOLUTION_OPTIONS = [
             { value: '2k', label: '2K' },
-            { value: '3k', label: '3K' },
-            { value: '4k', label: '4K' }
+            { value: '3k', label: '3K' }
         ];
 
         const SEEDREAM45_RESOLUTION_OPTIONS = [
@@ -2973,6 +2988,7 @@
                         ].filter(Boolean).length;
                         paramGrid.style.gridTemplateColumns = `repeat(${visibleCount}, minmax(0, 1fr))`;
                     }
+                    renderImageGrid();
                     updatePriceDisplay();
                 });
             }
@@ -3473,6 +3489,9 @@
             localStorage.setItem(PROVIDER_SETTINGS_KEY, JSON.stringify(providerSettings));
             const nextSettings = providerSettings[providerId] || {};
             applyProviderSettings(providerId, nextSettings);
+            if (document.getElementById('imageGrid')) {
+                renderImageGrid();
+            }
         }
 
         function getCurrentPrice() {
@@ -4347,7 +4366,8 @@
 
             const validImages = imageFiles.filter(f => f !== null);
             const totalReferenceCount = validImages.length;
-            countEl.textContent = `${validImages.length} / 10`;
+            const maxReferenceCount = getMaxReferenceCount();
+            countEl.textContent = `${validImages.length} / ${maxReferenceCount}`;
 
             for (let i = 0; i < imageFiles.length; i++) {
                 const file = imageFiles[i];
@@ -4385,8 +4405,7 @@
                 grid.appendChild(slot);
             }
 
-            // RunningHubAI 图像模型统一最多支持 10 张参考图
-            if (totalReferenceCount < 10) {
+            if (totalReferenceCount < maxReferenceCount) {
                 const addSlot = document.createElement('div');
                 addSlot.className = 'image-slot pastable-indicator relative border-2 border-dashed rounded-xl overflow-hidden cursor-pointer group transition-all';
                 addSlot.style.borderColor = 'var(--border-input)';
@@ -4423,7 +4442,7 @@
 
             const remaining = remainingReferenceSlots();
             if (remaining <= 0) {
-                showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
+                showMessage(`当前模型最多只能上传 ${getMaxReferenceCount()} 张参考图`, 'error');
                 event.target.value = '';
                 return;
             }
@@ -4455,7 +4474,7 @@
 
             const remaining = remainingReferenceSlots();
             if (remaining <= 0) {
-                showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
+                showMessage(`当前模型最多只能上传 ${getMaxReferenceCount()} 张参考图`, 'error');
                 return;
             }
 
@@ -4969,7 +4988,7 @@
                 await assignPreparedImage(files[0], index);
             } else {
                 if (remaining <= 0) {
-                    showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
+                    showMessage(`当前模型最多只能上传 ${getMaxReferenceCount()} 张参考图`, 'error');
                     return;
                 }
                 const filesToAdd = files.slice(0, remaining);
@@ -5058,7 +5077,7 @@
                 for (let item of items) {
                     if (item.type.indexOf('image') !== -1) {
                         if (remainingReferenceSlots() <= 0) {
-                            showMessage('RunningHubAI 图像模型最多只能上传10张参考图', 'error');
+                            showMessage(`当前模型最多只能上传 ${getMaxReferenceCount()} 张参考图`, 'error');
                             return;
                         }
 
@@ -5358,7 +5377,7 @@
             if (Array.isArray(data.detail)) {
                 return data.detail.map(item => item.msg || item.message || JSON.stringify(item)).join('; ');
             }
-            return data.errorMessage || data.error || data.message || fallback;
+            return data.errorMessage || data.error || data.message || data.msg || fallback;
         }
 
         async function readJsonResponse(response) {
@@ -5474,14 +5493,24 @@
                 throw new Error(getApiErrorMessage(data, `HTTP ${response.status}: ${response.statusText}`));
             }
 
-            const fileUrl = data.data?.fileUrl || data.data?.url || data.fileUrl || data.url || (typeof data.data === 'string' ? data.data : null);
+            const fileUrl = data.data?.download_url
+                || data.data?.downloadUrl
+                || data.data?.fileUrl
+                || data.data?.url
+                || data.download_url
+                || data.downloadUrl
+                || data.fileUrl
+                || data.url
+                || (typeof data.data === 'string' ? data.data : null);
 
-            if (data.code !== 0 && data.code !== 200) {
-                throw new Error(data.msg || data.message || `请求失败，code: ${data.code}`);
+            const hasResponseCode = data.code !== undefined && data.code !== null && data.code !== '';
+            const responseCode = hasResponseCode ? Number(data.code) : null;
+            if ((hasResponseCode && responseCode !== 0 && responseCode !== 200) || data.success === false) {
+                throw new Error(getApiErrorMessage(data, hasResponseCode ? `请求失败，code: ${data.code}` : '上传请求失败'));
             }
 
             if (!fileUrl) {
-                throw new Error(data.msg || data.message || '未能获取到返回的图片 URL');
+                throw new Error('上传接口返回成功，但响应中未包含 download_url、fileUrl 或 url');
             }
 
             updateUploadRecord(task, index, {
@@ -5531,9 +5560,10 @@
 
         // 执行单个任务 - 适配 RunningHubAI API
         async function executeTask(task) {
-            const profile = MODEL_PROFILES[resolveProviderId(task.providerId)] || MODEL_PROFILES['nano-banana2'];
+            const taskProvider = resolveProviderId(task.providerId);
+            const profile = MODEL_PROFILES[taskProvider] || MODEL_PROFILES['nano-banana2'];
             const validImages = task.images.filter(f => f !== null);
-            const isSeedream = activeProvider === 'seedream';
+            const isSeedream = taskProvider === 'seedream';
             const modelType = task.params?.modelType || 'low-cost';
 
             let endpoint = '';
@@ -5544,24 +5574,28 @@
                 if (modelType === 'seedream4-6') {
                     endpoint = `/openapi/v2/bytedance/jimeng-4.6/${action}`;
                 } else if (modelType === 'seedream5-lite') {
-                    endpoint = `/openapi/v2/seedream/seedream-v5-lite/${action}`;
+                    endpoint = `/openapi/v2/seedream-v5-lite/${action}`;
                 } else if (modelType === 'seedream5-pro') {
-                    endpoint = `/openapi/v2/seedream/seedream-v5-pro/${action}`;
+                    endpoint = `/openapi/v2/seedream-v5-pro/${action}`;
                 } else if (modelType === 'seedream4-0') {
-                    endpoint = `/openapi/v2/seedream/seedream-v4/${action}`;
+                    endpoint = `/openapi/v2/seedream-v4/${action}`;
                 } else if (modelType === 'seedream4-5') {
-                    endpoint = `/openapi/v2/seedream/seedream-v4.5/${action}`;
+                    endpoint = `/openapi/v2/seedream-v4.5/${action}`;
                 }
-            } else if (activeProvider === 'nano-banana2') {
+            } else if (taskProvider === 'nano-banana2') {
                 if (modelType === 'low-cost') endpoint = `/openapi/v2/rhart-image-n-g31-flash/${action}`;
                 else endpoint = `/openapi/v2/rhart-image-n-g31-flash-official/${action}`;
-            } else if (activeProvider === 'nano-banana-pro') {
+            } else if (taskProvider === 'nano-banana-pro') {
                 if (modelType === 'low-cost') endpoint = `/openapi/v2/rhart-image-n-pro/${isEdit}`;
                 else if (modelType === 'official') endpoint = `/openapi/v2/rhart-image-n-pro-official/${isEdit}`;
                 else if (modelType === 'ultra') endpoint = `/openapi/v2/rhart-image-n-pro-official/${isEdit}-ultra`;
-            } else if (activeProvider === 'gpt-image-2') {
+            } else if (taskProvider === 'gpt-image-2') {
                 if (modelType === 'low-cost') endpoint = `/openapi/v2/rhart-image-g-2/${action}`;
                 else endpoint = `/openapi/v2/rhart-image-g-2-official/${action}`;
+            }
+
+            if (!endpoint) {
+                throw new Error(`不支持的模型配置：${taskProvider}/${modelType}`);
             }
 
             const url = buildApiUrl(task.baseUrl, endpoint);
@@ -5577,10 +5611,12 @@
             }
 
             if (isSeedream) {
-                payload.scale = 50;
-                payload.forceSingle = false;
-                payload.minRatio = 0.333333;
-                payload.maxRatio = 3;
+                if (modelType === 'seedream4-6') {
+                    payload.scale = 50;
+                    payload.forceSingle = false;
+                    payload.minRatio = 0.333333;
+                    payload.maxRatio = 3;
+                }
 
                 if (profile.showResolution && task.params?.resolution) {
                     const res = task.params.resolution;
@@ -5591,14 +5627,60 @@
 
                     const ratioStr = task.params.aspectRatio || '1:1';
                     const [w, h] = ratioStr.split(':').map(Number);
-                    const ratio = w / h;
+                    const ratio = Number.isFinite(w / h) && w > 0 && h > 0 ? w / h : 1;
 
                     const totalPixels = baseSize * baseSize;
-                    const calcH = Math.round(Math.sqrt(totalPixels / ratio));
-                    const calcW = Math.round(calcH * ratio);
+                    let calcH = Math.round(Math.sqrt(totalPixels / ratio));
+                    let calcW = Math.round(calcH * ratio);
+
+                    let minWidth = modelType === 'seedream5-pro' ? 240 : 512;
+                    let maxWidth = 8192;
+                    let minHeight = modelType === 'seedream5-pro' ? 240 : 512;
+                    let maxHeight = 8192;
+                    let dimensionStep = modelType === 'seedream5-pro' || modelType === 'seedream4-6' ? 1 : 8;
+
+                    if (modelType === 'seedream4-6') {
+                        minWidth = 900;
+                        maxWidth = 6197;
+                        minHeight = 768;
+                        maxHeight = 4096;
+                    } else if (modelType === 'seedream5-lite') {
+                        minWidth = 1600;
+                        maxWidth = 4704;
+                        minHeight = 1344;
+                        maxHeight = 4096;
+                    }
+
+                    const fitWithinMaximums = () => {
+                        if (calcW > maxWidth) {
+                            calcW = maxWidth;
+                            calcH = Math.round(calcW / ratio);
+                        }
+                        if (calcH > maxHeight) {
+                            calcH = maxHeight;
+                            calcW = Math.round(calcH * ratio);
+                        }
+                    };
+                    fitWithinMaximums();
+                    if (calcW < minWidth) {
+                        calcW = minWidth;
+                        calcH = Math.round(calcW / ratio);
+                    }
+                    if (calcH < minHeight) {
+                        calcH = minHeight;
+                        calcW = Math.round(calcH * ratio);
+                    }
+                    fitWithinMaximums();
+
+                    calcW = Math.max(minWidth, Math.min(maxWidth, Math.round(calcW / dimensionStep) * dimensionStep));
+                    calcH = Math.max(minHeight, Math.min(maxHeight, Math.round(calcH / dimensionStep) * dimensionStep));
 
                     payload.width = calcW;
                     payload.height = calcH;
+                }
+
+                if (modelType === 'seedream5-pro') {
+                    payload.outputFormat = task.params?.outputFormat || 'jpeg';
                 }
             } else {
                 if (task.params?.aspectRatio) {
@@ -5635,10 +5717,16 @@
                 throw new Error(getApiErrorMessage(data, `HTTP ${response.status}: ${response.statusText}`));
             }
 
-            // 获取 RunningHubAI 或 RunningHub 本地任务 ID 并开始轮询
-            const serverTaskId = isSeedream ? data.data?.taskId || data.taskId : data.id;
+            if (String(data.status || data.data?.status || '').toUpperCase() === 'FAILED' || data.success === false) {
+                const message = getApiErrorMessage(data, 'RunningHubAI 创建任务失败');
+                recordTaskEvent(task, 'task.submit.failed', 'RunningHubAI 创建任务失败', { status: response.status, data });
+                throw new Error(message);
+            }
+
+            // V2 官方响应使用顶层 taskId；兼容代理层可能返回的 data.taskId / id。
+            const serverTaskId = data.taskId || data.data?.taskId || data.id || data.data?.id;
             if (!serverTaskId) {
-                throw new Error('未能获取任务ID');
+                throw new Error('RunningHubAI 响应成功，但未返回 taskId');
             }
 
             task.serverTaskId = serverTaskId;
@@ -6228,8 +6316,9 @@
             }
 
             const validImages = imageFiles.filter(f => f !== null);
-            if (validImages.length > 10) {
-                showMessage('最多支持 10 个参考文件', 'error');
+            const maxReferenceCount = getMaxReferenceCount(activeProvider, params);
+            if (validImages.length > maxReferenceCount) {
+                showMessage(`当前模型最多支持 ${maxReferenceCount} 个参考文件`, 'error');
                 return;
             }
             
