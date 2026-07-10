@@ -2483,11 +2483,11 @@
             return 10 - getReferenceTotalCount() + replacingExisting;
         }
 
-        function getDefaultRhReverseBaseUrl() {
-            return 'https://rh2api.someone97421.xyz/';
+        function getDefaultRunningHubBaseUrl() {
+            return 'https://www.runninghub.ai';
         }
 
-        const RH_REVERSE_DEFAULT_BASE_URL = getDefaultRhReverseBaseUrl();
+        const RUNNINGHUB_DEFAULT_BASE_URL = getDefaultRunningHubBaseUrl();
 
         const DEFAULT_PROVIDER_SETTINGS = {
             'nano-banana2': { aspectRatio: '16:9', modelType: 'low-cost', resolution: '2k' },
@@ -5132,7 +5132,7 @@
                 }
             }
 
-            document.getElementById('baseUrl').value = normalizeRhReverseBaseUrl(config?.baseUrl);
+            document.getElementById('baseUrl').value = normalizeRunningHubBaseUrl(config?.baseUrl);
             document.getElementById('apiKey').value = config?.apiKey || '';
             document.getElementById('historyLimit').value = config?.historyLimit || '20';
             document.getElementById('taskHistoryLimit').value = config?.taskHistoryLimit || '50';
@@ -5198,7 +5198,7 @@
             reader.onload = (e) => {
                 try {
                     const config = JSON.parse(e.target.result);
-                    document.getElementById('baseUrl').value = normalizeRhReverseBaseUrl(config.baseUrl);
+                    document.getElementById('baseUrl').value = normalizeRunningHubBaseUrl(config.baseUrl);
                     document.getElementById('apiKey').value = config.apiKey || '';
                     document.getElementById('historyLimit').value = config.historyLimit || '20';
                     document.getElementById('taskHistoryLimit').value = config.taskHistoryLimit || '50';
@@ -5326,10 +5326,10 @@
             return value.replace(/\/+$/, '');
         }
 
-        function normalizeRhReverseBaseUrl(value) {
+        function normalizeRunningHubBaseUrl(value) {
             const baseUrl = (value || '').trim();
-            if (!baseUrl || /runninghub\.(cn|ai)/i.test(baseUrl)) {
-                return RH_REVERSE_DEFAULT_BASE_URL;
+            if (!baseUrl) {
+                return RUNNINGHUB_DEFAULT_BASE_URL;
             }
             return baseUrl;
         }
@@ -6221,7 +6221,7 @@
 
         // 图像生成 - 使用任务队列 - 适配 RunningHubAI API
         async function generateImage() {
-            const baseUrl = normalizeRhReverseBaseUrl(document.getElementById('baseUrl').value);
+            const baseUrl = normalizeRunningHubBaseUrl(document.getElementById('baseUrl').value);
             document.getElementById('baseUrl').value = baseUrl;
             const apiKey = document.getElementById('apiKey').value.trim();
             const prompt = getParsedPromptText();
